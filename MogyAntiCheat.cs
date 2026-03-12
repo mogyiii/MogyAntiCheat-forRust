@@ -5,38 +5,54 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MogyAntiCheat", "Mogy", "1.5.0")]
+    [Info("MogyAntiCheat", "Mogy", "1.6.5")]
     public class MogyAntiCheat : RustPlugin
     {
         private class WeaponData
         {
             public List<ShotResult> History = new List<ShotResult>();
-            public void AddShot(bool hit, float distance, int limit)
+            public List<KeyValuePair<float, float>> PendingMisses = new List<KeyValuePair<float, float>>();
+
+            public void AddMiss(float distance)
             {
-                History.Add(new ShotResult { IsHit = hit, Distance = distance });
-                if (History.Count > limit) History.RemoveAt(0);
+                PendingMisses.Add(new KeyValuePair<float, float>(Time.realtimeSinceStartup, distance));
+                if (PendingMisses.Count > 100) PendingMisses.RemoveAt(0);
             }
-            public float GetAccuracy() => History.Count == 0 ? 0 : (float)History.Count(x => x.IsHit) / History.Count;
-            public float GetWeightedScore(float safeDist)
+
+            public void RegisterHit(float distance, int limit, float expiryTime)
             {
-                if (History.Count == 0) return 0;
-                float totalScore = 0;
-                int hits = 0;
-                foreach (var shot in History)
+                float now = Time.realtimeSinceStartup;
+                // Átemeljük a nem lejárt mellélövéseket a végleges listába
+                foreach (var miss in PendingMisses)
                 {
-                    if (shot.IsHit)
+                    if (now - miss.Key <= expiryTime)
                     {
-                        float distFactor = shot.Distance > safeDist ? (shot.Distance / safeDist) : 1f;
-                        totalScore += distFactor;
-                        hits++;
+                        History.Add(new ShotResult { IsHit = false, Distance = miss.Value });
                     }
                 }
-                return hits == 0 ? 0 : totalScore / hits;
+                PendingMisses.Clear();
+
+                // Hozzáadjuk a találatot
+                History.Add(new ShotResult { IsHit = true, Distance = distance });
+
+                // Tárhely korlátozás
+                while (History.Count > limit) History.RemoveAt(0);
+            }
+
+            public float GetAccuracy() => History.Count == 0 ? 0 : (float)History.Count(x => x.IsHit) / History.Count;
+
+            public float GetWeightedScore(float safeDist)
+            {
+                var hits = History.Where(x => x.IsHit).ToList();
+                if (hits.Count == 0) return 0;
+                float totalScore = hits.Sum(shot => shot.Distance > safeDist ? (shot.Distance / safeDist) : 1f);
+                return totalScore / hits.Count;
             }
         }
 
         private struct ShotResult { public bool IsHit; public float Distance; }
         private Dictionary<ulong, Dictionary<string, WeaponData>> _playerStats = new Dictionary<ulong, Dictionary<string, WeaponData>>();
+        private Dictionary<ulong, float> _lastHitTime = new Dictionary<ulong, float>();
 
         protected override void LoadDefaultConfig()
         {
@@ -75,80 +91,64 @@ namespace Oxide.Plugins
                 ["shotgun.pump"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.70, ["SampleCount"] = 15, ["SafeDistance"] = 10.0 },
                 ["shotgun.spas12"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.70, ["SampleCount"] = 20, ["SafeDistance"] = 10.0 }
             };
+            Config["MissExpirySeconds"] = 20.0;
             SaveConfig();
         }
 
         void OnWeaponFired(BaseProjectile weapon, BasePlayer player)
         {
             if (player == null || weapon == null) return;
-            string weaponName = weapon.ShortPrefabName.Replace(".entity", "");
-            RecordShot(player.userID, weaponName, false, 0f);
+            string wName = weapon.ShortPrefabName.Replace(".entity", "");
+
+            if (!_playerStats.ContainsKey(player.userID)) _playerStats[player.userID] = new Dictionary<string, WeaponData>();
+            if (!_playerStats[player.userID].ContainsKey(wName)) _playerStats[player.userID][wName] = new WeaponData();
+
+            _playerStats[player.userID][wName].AddMiss(0f);
         }
 
         void OnEntityTakeDamage(BaseEntity entity, HitInfo info)
         {
-            if (info == null || info.InitiatorPlayer == null || entity == null) return;
-            if (entity is BuildingBlock) return;
+            if (info == null || info.InitiatorPlayer == null || entity == null || entity is BuildingBlock) return;
 
             BasePlayer attacker = info.InitiatorPlayer;
 
-            // Fegyver beazonosítása
+            // --- DUPLÁZÓDÁS ELLENI VÉDELEM ---
+            float lastHit;
+            if (_lastHitTime.TryGetValue(attacker.userID, out lastHit))
+            {
+                if (Time.realtimeSinceStartup - lastHit < 0.05f) return; // Ha túl gyorsan jön a következő hit, eldobjuk
+            }
+            _lastHitTime[attacker.userID] = Time.realtimeSinceStartup;
+            // --------------------------------
+
             var weapon = attacker.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
-            string weaponName = weapon != null ? weapon.ShortPrefabName.Replace(".entity", "") : "unknown";
+            if (weapon == null) return;
 
+            string wName = weapon.ShortPrefabName.Replace(".entity", "");
             float dist = Vector3.Distance(info.HitPositionWorld, info.PointStart);
+            float expiry = Config["MissExpirySeconds"] != null ? System.Convert.ToSingle(Config["MissExpirySeconds"]) : 20f;
 
-            // 1. Statisztika frissítése
-            UpdateLastShotToHit(attacker.userID, weaponName, dist);
+            int limit = 40;
+            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
+            if (weaponsCfg != null && weaponsCfg.ContainsKey(wName))
+            {
+                var entry = weaponsCfg[wName] as Dictionary<string, object>;
+                limit = System.Convert.ToInt32(entry["SampleCount"]);
+            }
 
-            // 2. Globális büntetés lekérése
+            if (!_playerStats.ContainsKey(attacker.userID)) _playerStats[attacker.userID] = new Dictionary<string, WeaponData>();
+            if (!_playerStats[attacker.userID].ContainsKey(wName)) _playerStats[attacker.userID][wName] = new WeaponData();
+
+            // Regisztráljuk a találatot
+            _playerStats[attacker.userID][wName].RegisterHit(dist, limit, expiry);
+
             float globalNerf = GetLowestNerf(attacker.userID);
-
-            // --- ADMIN VÉDELEM KIKOMMENTELVE TESZTHEZ ---
-            // if (attacker.IsAdmin) return; 
-
-            // 3. Sebzés módosítása (Ha a nerf < 1.0, akkor érvényesítjük)
-            if (globalNerf < 1.0f)
+            if (!attacker.IsAdmin && globalNerf < 1.0f)
             {
                 info.damageTypes.ScaleAll(globalNerf);
-
-                // Csak hogy lásd a konzolban is, hogy dolgozik:
-                if (globalNerf == 0f)
-                {
-                    // Opcionális: küldhetünk egy üzenetet az adminnak, hogy most épp 0-t sebez
-                    // SendReply(attacker, "DEBUG: 0% damage applied!");
-                }
             }
         }
 
-        private void UpdateLastShotToHit(ulong userId, string weapon, float dist)
-        {
-            if (!_playerStats.ContainsKey(userId) || !_playerStats[userId].ContainsKey(weapon)) return;
-            var history = _playerStats[userId][weapon].History;
-            for (int i = history.Count - 1; i >= 0; i--)
-            {
-                if (!history[i].IsHit)
-                {
-                    history[i] = new ShotResult { IsHit = true, Distance = dist };
-                    break;
-                }
-            }
-        }
-
-        private void RecordShot(ulong userId, string weapon, bool isHit, float dist)
-        {
-            if (!_playerStats.ContainsKey(userId)) _playerStats[userId] = new Dictionary<string, WeaponData>();
-            if (!_playerStats[userId].ContainsKey(weapon)) _playerStats[userId][weapon] = new WeaponData();
-
-            int limit = 30;
-            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
-            if (weaponsCfg != null && weaponsCfg.ContainsKey(weapon))
-                limit = System.Convert.ToInt32(((Dictionary<string, object>)weaponsCfg[weapon])["SampleCount"]);
-
-            _playerStats[userId][weapon].AddShot(isHit, dist, limit);
-        }
-
-        // Kiszámolja a legdurvább büntetést az összes fegyver közül
         private float GetLowestNerf(ulong userId)
         {
             if (!_playerStats.ContainsKey(userId)) return 1.0f;
@@ -159,35 +159,23 @@ namespace Oxide.Plugins
             {
                 if (weaponsCfg == null || !weaponsCfg.ContainsKey(weaponEntry.Key)) continue;
                 var cfg = weaponsCfg[weaponEntry.Key] as Dictionary<string, object>;
-
-                float max = System.Convert.ToSingle(cfg["MaxAccuracy"]);
-                float safe = System.Convert.ToSingle(cfg["SafeDistance"]);
-
                 var data = weaponEntry.Value;
 
-                // Csökkentettük a várakozást: már 10 lövés után büntethet
                 if (data.History.Count < 10) continue;
 
                 float acc = data.GetAccuracy();
+                float max = System.Convert.ToSingle(cfg["MaxAccuracy"]);
+                float safe = System.Convert.ToSingle(cfg["SafeDistance"]);
+
                 if (acc > max)
                 {
                     float distW = data.GetWeightedScore(safe);
-
-                    // Kiszámoljuk a túllépést (0.0 - 1.0 között)
                     float excess = (acc - max) / (1.0f - max);
-
-                    // Távolsági büntetés: ha distW > 1, exponenciálisan növeljük a büntetést
-                    // Ha messzire lő 100%-ot, a penaltyFactor pillanatok alatt 1.0 (vagy több) lesz
                     float penaltyFactor = excess * (distW > 1.0f ? Mathf.Pow(distW, 2f) : 1.0f);
 
                     float currentNerf = 1.0f - penaltyFactor;
-
-                    // Ha 100%-os a pontosság és messze van, azonnali 0
                     if (acc > 0.95f && distW > 1.2f) currentNerf = 0f;
-
-                    // 30% alatt már ne is sebezzen semmit
                     if (currentNerf < 0.30f) currentNerf = 0f;
-
                     if (currentNerf < lowestNerf) lowestNerf = currentNerf;
                 }
             }
@@ -199,7 +187,7 @@ namespace Oxide.Plugins
         {
             if (!player.IsAdmin) return;
             BasePlayer target = (args.Length > 0) ? BasePlayer.Find(args[0]) : player;
-            if (target == null) return;
+            if (target == null) { SendReply(player, "Játékos nem található."); return; }
 
             float globalDmg = GetLowestNerf(target.userID);
             string globalColor = globalDmg < 0.5f ? "#ff6666" : (globalDmg < 1.0f ? "#ffff55" : "#88ff88");
@@ -219,12 +207,11 @@ namespace Oxide.Plugins
 
             SendReply(player, report);
         }
-        // --- ÚJ PARANCS: LISTA MINDENKIRŐL ---
+
         [ChatCommand("aclist")]
         void CmdAcList(BasePlayer player, string command, string[] args)
         {
             if (!player.IsAdmin) return;
-
             string report = "<color=#55ff55>=== MogyAC AKTÍV LISTA ===</color>\n";
             report += "<color=#aaaaaa>Játékos | Átlag Acc | Sebzés</color>\n";
 
@@ -245,42 +232,18 @@ namespace Oxide.Plugins
 
                 float avgAcc = count > 0 ? (totalAcc / count) : 0;
                 string dmgColor = globalDmg < 1.0f ? "#ff6666" : "#88ff88";
-                
                 report += $"{target.displayName} | {avgAcc:P0} | <color={dmgColor}>{globalDmg:P0}</color>\n";
             }
-
             SendReply(player, report);
         }
 
-        // --- ÚJ PARANCS: RESET ---
         [ChatCommand("acreset")]
         void CmdAcReset(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin) return;
-
-            if (args.Length == 0)
-            {
-                SendReply(player, "Használat: /acreset <játékosnév>");
-                return;
-            }
-
+            if (!player.IsAdmin || args.Length == 0) return;
             BasePlayer target = BasePlayer.Find(args[0]);
-            if (target == null)
-            {
-                SendReply(player, "Játékos nem található.");
-                return;
-            }
-
-            if (_playerStats.ContainsKey(target.userID))
-            {
-                _playerStats.Remove(target.userID);
-                SendReply(player, $"<color=#55ff55>[MogyAC] {target.displayName} statisztikái törölve. Sebzés újra 100%.</color>");
-                Puts($"[MogyAC] Admin {player.displayName} resetelte {target.displayName} statisztikáit.");
-            }
-            else
-            {
-                SendReply(player, "Nincs tárolt adat a játékosról.");
-            }
+            if (target != null && _playerStats.Remove(target.userID))
+                SendReply(player, $"<color=#55ff55>[MogyAC] {target.displayName} statisztikái törölve.</color>");
         }
     }
 }
