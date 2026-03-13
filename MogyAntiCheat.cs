@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MogyAntiCheat", "Mogy", "1.6.6")]
+    [Info("MogyAntiCheat", "Mogy", "1.6.7")]
     public class MogyAntiCheat : RustPlugin
     {
         private class WeaponData
@@ -122,7 +122,7 @@ namespace Oxide.Plugins
 
         void OnWeaponFired(BaseProjectile weapon, BasePlayer player)
         {
-            if (player == null || weapon == null) return;
+            if (player == null || weapon == null || player.IsNpc) return; // NPC ne lőjön bele a statba
             string wName = weapon.ShortPrefabName.Replace(".entity", "");
 
             if (!_playerStats.ContainsKey(player.userID)) _playerStats[player.userID] = new Dictionary<string, WeaponData>();
@@ -133,18 +133,27 @@ namespace Oxide.Plugins
 
         void OnEntityTakeDamage(BaseEntity entity, HitInfo info)
         {
-            if (info == null || info.InitiatorPlayer == null || entity == null || entity is BuildingBlock) return;
+            if (info == null || info.InitiatorPlayer == null || entity == null) return;
+
+            // --- PONTOS NPC ÉS ÉPÜLET SZŰRÉS ---
+            if (entity is BuildingBlock) return;
+
+            BasePlayer targetPlayer = entity as BasePlayer;
+
+            // Ha nem játékost találtunk el, vagy az illető NPC/Bot:
+            if (targetPlayer == null || targetPlayer.IsNpc || !targetPlayer.userID.IsSteamId()) return;
+            // ----------------------------------
 
             BasePlayer attacker = info.InitiatorPlayer;
+            if (attacker.IsNpc || !attacker.userID.IsSteamId()) return; // Az NPC-k lövéseit se mérjük
 
-            // --- DUPLÁZÓDÁS ELLENI VÉDELEM ---
+            // Idő alapú védelem marad
             float lastHit;
             if (_lastHitTime.TryGetValue(attacker.userID, out lastHit))
             {
-                if (Time.realtimeSinceStartup - lastHit < 0.05f) return; // Ha túl gyorsan jön a következő hit, eldobjuk
+                if (Time.realtimeSinceStartup - lastHit < 0.05f) return;
             }
             _lastHitTime[attacker.userID] = Time.realtimeSinceStartup;
-            // --------------------------------
 
             var weapon = attacker.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
             if (weapon == null) return;
@@ -167,6 +176,7 @@ namespace Oxide.Plugins
             // Regisztráljuk a találatot
             _playerStats[attacker.userID][wName].RegisterHit(dist, limit, expiry);
 
+            // Sebzés csökkentés - Csak akkor, ha az áldozat is játékos
             float globalNerf = GetLowestNerf(attacker.userID);
             if (!attacker.IsAdmin && globalNerf < 1.0f)
             {
