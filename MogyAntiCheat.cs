@@ -2,12 +2,15 @@ using System.Collections.Generic;
 using System.Linq;
 using Oxide.Core;
 using UnityEngine;
+using Oxide.Core.Configuration;
 
 namespace Oxide.Plugins
 {
-    [Info("MogyAntiCheat", "Mogy", "1.6.7")]
+    [Info("MogyAntiCheat", "Mogy", "1.6.8")]
     public class MogyAntiCheat : RustPlugin
     {
+        private DynamicConfigFile _storedData;
+        private Dictionary<ulong, Dictionary<string, List<ShotResult>>> _savedStats = new Dictionary<ulong, Dictionary<string, List<ShotResult>>>();
         private class WeaponData
         {
             public List<ShotResult> History = new List<ShotResult>();
@@ -79,6 +82,46 @@ namespace Oxide.Plugins
         private Dictionary<ulong, Dictionary<string, WeaponData>> _playerStats = new Dictionary<ulong, Dictionary<string, WeaponData>>();
         private Dictionary<ulong, float> _lastHitTime = new Dictionary<ulong, float>();
 
+        void Init()
+        {
+            _storedData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_Stats");
+            LoadStats();
+        }
+
+        void OnServerSave() => SaveStats(); // Minden automatikus mentésnél mentsen a plugin is
+        void Unload() => SaveStats();       // Plugin leálláskor (restart/reload) mentsen
+
+        private void SaveStats()
+        {
+            var dataToSave = new Dictionary<string, Dictionary<string, List<ShotResult>>>();
+            foreach (var player in _playerStats)
+            {
+                var weaponDict = new Dictionary<string, List<ShotResult>>();
+                foreach (var weapon in player.Value)
+                {
+                    weaponDict[weapon.Key] = weapon.Value.History;
+                }
+                dataToSave[player.Key.ToString()] = weaponDict;
+            }
+            _storedData.WriteObject(dataToSave);
+        }
+
+        private void LoadStats()
+        {
+            var data = _storedData.ReadObject<Dictionary<string, Dictionary<string, List<ShotResult>>>>();
+            if (data == null) return;
+
+            foreach (var playerEntry in data)
+            {
+                ulong userId = ulong.Parse(playerEntry.Key);
+                _playerStats[userId] = new Dictionary<string, WeaponData>();
+
+                foreach (var weaponEntry in playerEntry.Value)
+                {
+                    _playerStats[userId][weaponEntry.Key] = new WeaponData { History = weaponEntry.Value };
+                }
+            }
+        }
         protected override void LoadDefaultConfig()
         {
             Config["Weapons"] = new Dictionary<string, object>
@@ -217,7 +260,7 @@ namespace Oxide.Plugins
             return Mathf.Clamp(lowestNerf, 0f, 1.0f);
         }
 
-        [ChatCommand("checkac")]
+        [ChatCommand("ac-check")]
         void CmdChatCheck(BasePlayer player, string command, string[] args)
         {
             if (!player.IsAdmin) return;
@@ -243,7 +286,7 @@ namespace Oxide.Plugins
             SendReply(player, report);
         }
 
-        [ChatCommand("aclist")]
+        [ChatCommand("ac-list")]
         void CmdAcList(BasePlayer player, string command, string[] args)
         {
             if (!player.IsAdmin) return;
@@ -272,7 +315,7 @@ namespace Oxide.Plugins
             SendReply(player, report);
         }
 
-        [ChatCommand("acreset")]
+        [ChatCommand("ac-reset")]
         void CmdAcReset(BasePlayer player, string command, string[] args)
         {
             if (!player.IsAdmin || args.Length == 0) return;
