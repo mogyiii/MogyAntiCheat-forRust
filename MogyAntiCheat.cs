@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MogyAntiCheat", "Mogy", "1.6.5")]
+    [Info("MogyAntiCheat", "Mogy", "1.6.6")]
     public class MogyAntiCheat : RustPlugin
     {
         private class WeaponData
@@ -22,18 +22,43 @@ namespace Oxide.Plugins
             public void RegisterHit(float distance, int limit, float expiryTime)
             {
                 float now = Time.realtimeSinceStartup;
-                // Átemeljük a nem lejárt mellélövéseket a végleges listába
-                foreach (var miss in PendingMisses)
+
+                // 1. Keressük meg a legfrissebb lövést a várólistán
+                // (Hátulról nézzük, mert a legutolsó lövésünk a legvalószínűbb találat)
+                int lastIndex = -1;
+                for (int i = PendingMisses.Count - 1; i >= 0; i--)
                 {
-                    if (now - miss.Key <= expiryTime)
+                    if (now - PendingMisses[i].Key <= expiryTime)
                     {
-                        History.Add(new ShotResult { IsHit = false, Distance = miss.Value });
+                        lastIndex = i;
+                        break;
                     }
                 }
-                PendingMisses.Clear();
 
-                // Hozzáadjuk a találatot
-                History.Add(new ShotResult { IsHit = true, Distance = distance });
+                // 2. Ha találtunk érvényes lövést a várólistán:
+                if (lastIndex != -1)
+                {
+                    // Minden lövést, ami EZELŐTT történt és nem járt le, mellélövésnek könyvelünk el
+                    for (int i = 0; i < lastIndex; i++)
+                    {
+                        if (now - PendingMisses[i].Key <= expiryTime)
+                        {
+                            History.Add(new ShotResult { IsHit = false, Distance = PendingMisses[i].Value });
+                        }
+                    }
+
+                    // Magát a találatot (a lastIndex-nél lévőt) hozzáadjuk találatként
+                    History.Add(new ShotResult { IsHit = true, Distance = distance });
+
+                    // Töröljük a listát a feldolgozott lövésekig (a találattal együtt)
+                    PendingMisses.RemoveRange(0, lastIndex + 1);
+                }
+                else
+                {
+                    // Ha valamiért nem volt lövés a listán (ritka lag), 
+                    // akkor csak simán adjuk hozzá a találatot, hogy ne maradjunk le semmiről
+                    History.Add(new ShotResult { IsHit = true, Distance = distance });
+                }
 
                 // Tárhely korlátozás
                 while (History.Count > limit) History.RemoveAt(0);
