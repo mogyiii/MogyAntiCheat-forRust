@@ -5,7 +5,7 @@ Status values: `Planned`, `In Progress`, `Done`, `Deferred`.
 
 ## M1 - Internationalization (i18n) Foundation
 
-Status: `Planned`
+Status: `In Progress`
 Target: Q2 2026
 
 Goal:
@@ -20,6 +20,9 @@ Deliverables:
 Acceptance Criteria:
 - All current user-facing messages are key-based.
 - Server operators can switch default language without code edits.
+
+RFC:
+- `docs/RFCs/RFC-0001-i18n-foundation.md`
 
 ## M2 - Multi-Threshold Penalty Profiles
 

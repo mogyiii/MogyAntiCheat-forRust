@@ -1,0 +1,16 @@
+﻿{
+  "NoPermission": "You do not have permission to use this command.",
+  "PlayerNotFound": "Player not found.",
+  "NoData": "No data.",
+  "StatsHeader": "=== MogyAC STATS: {0} ===",
+  "GlobalDamageLabel": "GLOBAL DAMAGE",
+  "WeaponLine": "{0}: {1:P1} ({2} shots)",
+  "ActiveListHeader": "=== MogyAC ACTIVE LIST ===",
+  "ActiveListColumns": "Player | Avg Acc | Damage",
+  "StatsResetSuccess": "[MogyAC] {0} stats reset.",
+  "ResetUsage": "Usage: /ac-reset <playerName>",
+  "LangUsage": "Usage: /ac-lang <languageCode>",
+  "LangUpdated": "Default language set to: {0}.",
+  "LangAlreadySet": "Default language is already: {0}.",
+  "LangUnsupported": "Unsupported language: {0}. Supported: {1}"
+}

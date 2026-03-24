@@ -29,14 +29,14 @@ This document defines config keys, types, defaults, and constraints.
 - Typical range: `10 - 100`
 - Meaning: Distance baseline used by weighted scoring.
 
-## Planned Keys (M1-M3)
 
 ## `DefaultLanguage`
 
 - Type: `string`
 - Default: `"en"`
-- Meaning: Default message language.
-- Constraint: must exist in loaded language files.
+- Meaning: Default message language (implemented).
+- Constraint: should match an available language code (`en`, `hu`, ...).
+## Planned Keys (M1-M3)
 
 ## `PenaltyTiers`
 
@@ -65,3 +65,5 @@ Planned fields:
 - Invalid numeric values should be clamped or rejected with clear warning logs.
 - Unknown keys should be ignored but reported in debug logs.
 - On invalid config, plugin should use safe defaults instead of crashing.
+
+

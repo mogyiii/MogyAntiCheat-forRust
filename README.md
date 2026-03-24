@@ -48,7 +48,8 @@ A plugin nem fĂˇjlokat vagy folyamatokat vizsgĂˇl, hanem harci esemĂ©nyekb
 
 A konfigurĂˇciĂłban fegyverenkĂ©nti bejegyzĂ©sek vannak a `Weapons` alatt, plusz egy globĂˇlis beĂˇllĂ­tĂˇs:
 
-- `MissExpirySeconds`: mennyi ideig szĂˇmĂ­t Ă©rvĂ©nyesnek egy leadott lĂ¶vĂ©s a talĂˇlat pĂˇrosĂ­tĂˇsĂˇhoz.
+- `MissExpirySeconds`: mennyi ideig szamit ervenyesnek egy leadott loves a talalat parositasahoz.
+- `DefaultLanguage`: alapertelmezett nyelv, ha nincs jatekos-specifikus nyelv (`en` alap).
 
 FegyverenkĂ©nti paramĂ©terek:
 
@@ -71,11 +72,28 @@ PĂ©lda:
 }
 ```
 
+
+## Nyelvi testreszabas
+
+A plugin kulcs-alapu uzeneteket hasznal, kulon nyelvi JSON fajlokkal.
+
+Alap fajlok:
+
+- `oxide/lang/en/MogyAntiCheat.json`
+- `oxide/lang/hu/MogyAntiCheat.json`
+
+Lepesek:
+
+1. Szerkeszd a kivant nyelvi JSON fajlt.
+2. Allitsd a `DefaultLanguage` erteket a configban.
+3. Plugin reload utan ellenorizd pl. `/ac-check` paranccsal.
+4. Opcionisan hasznald: `/ac-lang <nyelvkod>` az alapertelmezett nyelv valtasahoz.
 ## Parancsok (csak admin)
 
 - `/ac-check [jĂˇtĂ©kosnĂ©v]` - RĂ©szletes statisztika egy jĂˇtĂ©kosrĂłl.
 - `/ac-list` - Online jĂˇtĂ©kosok listĂˇzĂˇsa Ăˇtlag pontossĂˇggal Ă©s aktuĂˇlis sebzĂ©s-szorzĂłval.
-- `/ac-reset [jĂˇtĂ©kosnĂ©v]` - JĂˇtĂ©kos statisztikĂˇinak tĂ¶rlĂ©se.
+- /ac-reset [jatekosnev] - Jatekos statisztikainak torlese.
+- `/ac-lang <nyelvkod>` - Alapertelmezett plugin nyelv allitasa (pl. `en`, `hu`).
 
 ## Hogyan mĹ±kĂ¶dik a sebzĂ©scsĂ¶kkentĂ©s
 
@@ -99,5 +117,10 @@ MIT License.
 
 ---
 KĂ©szĂ­tette: **Mogy**
+
+
+
+
+
 
 

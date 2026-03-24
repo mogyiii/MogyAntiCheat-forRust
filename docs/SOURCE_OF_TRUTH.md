@@ -1,4 +1,4 @@
-# MogyAntiCheat Source of Truth
+﻿# MogyAntiCheat Source of Truth
 
 This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.6.8).
 
@@ -116,6 +116,7 @@ Top-level keys:
 
 - `Weapons` (dictionary by weapon short name)
 - `MissExpirySeconds` (float)
+- `DefaultLanguage` (string, default `en`)
 
 Each weapon requires:
 
@@ -137,6 +138,9 @@ If a weapon has no entry, history limit falls back to `40` during hit registrati
 - `/ac-reset [name]`
   - Admin-only.
   - Removes target player's tracked state from memory.
+- `/ac-lang <code>`
+  - Admin-only.
+  - Sets and persists `DefaultLanguage` in plugin config.
 
 ## Known Constraints
 
@@ -157,3 +161,8 @@ When plugin behavior changes, update all of:
 1. `MogyAntiCheat.cs` version string.
 2. `README.en.md`.
 3. This file (`docs/SOURCE_OF_TRUTH.md`).
+
+
+
+
+

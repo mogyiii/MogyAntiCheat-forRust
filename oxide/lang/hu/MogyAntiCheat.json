@@ -1,0 +1,16 @@
+﻿{
+  "NoPermission": "Nincs jogosultsagod ehhez a parancshoz.",
+  "PlayerNotFound": "Jatekos nem talalhato.",
+  "NoData": "Nincs adat.",
+  "StatsHeader": "=== MogyAC STAT: {0} ===",
+  "GlobalDamageLabel": "GLOBAL SEBZES",
+  "WeaponLine": "{0}: {1:P1} ({2} loves)",
+  "ActiveListHeader": "=== MogyAC AKTIV LISTA ===",
+  "ActiveListColumns": "Jatekos | Atlag Acc | Sebzes",
+  "StatsResetSuccess": "[MogyAC] {0} statisztikai torolve.",
+  "ResetUsage": "Hasznalat: /ac-reset <jatekosnev>",
+  "LangUsage": "Hasznalat: /ac-lang <nyelvkod>",
+  "LangUpdated": "Alapertelmezett nyelv beallitva: {0}.",
+  "LangAlreadySet": "Az alapertelmezett nyelv mar ez: {0}.",
+  "LangUnsupported": "Nem tamogatott nyelv: {0}. Tamogatott: {1}"
+}

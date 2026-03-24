@@ -46,6 +46,7 @@ The plugin does not scan files or processes. It observes combat events and compu
 Default config contains per-weapon entries under `Weapons` and one global setting:
 
 - `MissExpirySeconds`: How long a fired shot can stay in pending state before it is considered stale.
+- `DefaultLanguage`: Default language for messages without player-specific language (`en` by default).
 
 Each weapon entry supports:
 
@@ -68,11 +69,28 @@ Example:
 }
 ```
 
+
+## Language Customization
+
+The plugin ships with language keys and supports custom language files.
+
+Default files:
+
+- `oxide/lang/en/MogyAntiCheat.json`
+- `oxide/lang/hu/MogyAntiCheat.json`
+
+To customize text:
+
+1. Edit your language JSON file.
+2. Set `DefaultLanguage` in `MogyAntiCheat.json` config.
+3. Reload plugin and verify `/ac-check` output.
+4. Optional: use `/ac-lang <languageCode>` as admin for runtime default language switch.
 ## Commands (Admin Only)
 
 - `/ac-check [playerName]` - Show detailed anti-cheat stats for one player.
 - `/ac-list` - List online players with average accuracy and current damage multiplier.
-- `/ac-reset [playerName]` - Clear a player's tracked stats.
+- /ac-reset [playerName] - Clear a player's tracked stats.
+- `/ac-lang <languageCode>` - Set plugin default language (e.g., `en`, `hu`).
 
 ## How Nerfing Works
 
@@ -96,5 +114,10 @@ MIT License.
 
 ---
 Created by **Mogy**
+
+
+
+
+
 
 
