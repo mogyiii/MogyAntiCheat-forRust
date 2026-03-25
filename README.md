@@ -1,63 +1,63 @@
-# MogyAntiCheat for Rust (Oxide/uMod)
+﻿# MogyAntiCheat for Rust (Oxide/uMod)
 
 [English docs](README.en.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.6.8-blue)
+![Version](https://img.shields.io/badge/version-1.7.0-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
-## Projekt dokumentáció
+## Projekt dokumentĂˇciĂł
 
 - Source of truth: `docs/SOURCE_OF_TRUTH.md`
 - Roadmap: `docs/ROADMAP.md`
-- Public API (draft): `docs/PUBLIC_API.md`
-- Config séma: `docs/CONFIG_SCHEMA.md`
+- Public API: `docs/PUBLIC_API.md`
+- Config sĂ©ma: `docs/CONFIG_SCHEMA.md`
 - RFC sablon: `docs/RFCs/TEMPLATE.md`
-- Változásnapló: `CHANGELOG.md`
+- VĂˇltozĂˇsnaplĂł: `CHANGELOG.md`
 
-A MogyAntiCheat egy statisztikai alapú anti-cheat plugin Rust (Oxide/uMod) szerverekhez.  
-A hagyományos azonnali tiltás helyett dinamikusan csökkenti a gyanús játékosok kimenő sebzését, így kisebb a false positive találatokból adódó kár.
+A MogyAntiCheat egy statisztikai alapĂş anti-cheat plugin Rust (Oxide/uMod) szerverekhez.  
+A hagyomĂˇnyos azonnali tiltĂˇs helyett dinamikusan csĂ¶kkenti a gyanĂşs jĂˇtĂ©kosok kimenĹ‘ sebzĂ©sĂ©t, Ă­gy kisebb a false positive talĂˇlatokbĂłl adĂłdĂł kĂˇr.
 
-## Működési elv
+## MĹ±kĂ¶dĂ©si elv
 
-A plugin nem fájlokat vagy folyamatokat vizsgál, hanem harci eseményekből dolgozik.
+A plugin nem fĂˇjlokat vagy folyamatokat vizsgĂˇl, hanem harci esemĂ©nyekbĹ‘l dolgozik.
 
-1. Minden lövés egy ideiglenes várólistára kerül.
-2. A valós játékos-játékos találatok vissza vannak párosítva a friss lövésekhez.
-3. Fegyverenként gördülő pontossági statisztika készül.
-4. A távoli találatok nagyobb súlyt kapnak, mint a közeliek.
-5. Küszöbátlépés esetén a kimenő sebzés fokozatosan csökkenhet akár 0-ig.
+1. Minden lĂ¶vĂ©s egy ideiglenes vĂˇrĂłlistĂˇra kerĂĽl.
+2. A valĂłs jĂˇtĂ©kos-jĂˇtĂ©kos talĂˇlatok vissza vannak pĂˇrosĂ­tva a friss lĂ¶vĂ©sekhez.
+3. FegyverenkĂ©nt gĂ¶rdĂĽlĹ‘ pontossĂˇgi statisztika kĂ©szĂĽl.
+4. A tĂˇvoli talĂˇlatok nagyobb sĂşlyt kapnak, mint a kĂ¶zeliek.
+5. KĂĽszĂ¶bĂˇtlĂ©pĂ©s esetĂ©n a kimenĹ‘ sebzĂ©s fokozatosan csĂ¶kkenhet akĂˇr 0-ig.
 
-## Főbb jellemzők
+## FĹ‘bb jellemzĹ‘k
 
-- Időablakos lövés-találat párosítás.
-- Fegyverenként külön finomhangolható küszöbök.
-- Tartós adattárolás újraindítás után is (`oxide/data/MogyAntiCheat_Stats.json`).
-- NPC-k és épületek kizárása a releváns statisztikából.
-- Admin mentesség a sebzéscsökkentés alól.
-- In-game admin parancsok ellenőrzéshez és resethez.
+- IdĹ‘ablakos lĂ¶vĂ©s-talĂˇlat pĂˇrosĂ­tĂˇs.
+- FegyverenkĂ©nt kĂĽlĂ¶n finomhangolhatĂł kĂĽszĂ¶bĂ¶k.
+- TartĂłs adattĂˇrolĂˇs ĂşjraindĂ­tĂˇs utĂˇn is (`oxide/data/MogyAntiCheat_Stats.json`).
+- NPC-k Ă©s Ă©pĂĽletek kizĂˇrĂˇsa a relevĂˇns statisztikĂˇbĂłl.
+- Admin mentessĂ©g a sebzĂ©scsĂ¶kkentĂ©s alĂłl.
+- In-game admin parancsok ellenĹ‘rzĂ©shez Ă©s resethez.
 
-## Telepítés
+## TelepĂ­tĂ©s
 
-1. Telepítsd az Oxide/uMod rendszert a Rust szerveredre.
-2. Másold a `MogyAntiCheat.cs` fájlt a `server/<identity>/oxide/plugins/` mappába.
-3. Töltsd újra a plugint vagy indítsd újra a szervert.
-4. Állítsd be a küszöböket a `server/<identity>/oxide/config/MogyAntiCheat.json` fájlban.
+1. TelepĂ­tsd az Oxide/uMod rendszert a Rust szerveredre.
+2. MĂˇsold a `MogyAntiCheat.cs` fĂˇjlt a `server/<identity>/oxide/plugins/` mappĂˇba.
+3. TĂ¶ltsd Ăşjra a plugint vagy indĂ­tsd Ăşjra a szervert.
+4. ĂllĂ­tsd be a kĂĽszĂ¶bĂ¶ket a `server/<identity>/oxide/config/MogyAntiCheat.json` fĂˇjlban.
 
-## Konfiguráció
+## KonfigurĂˇciĂł
 
-A konfigurációban fegyverenkénti bejegyzések vannak a `Weapons` alatt, plusz globális beállítások:
+A konfigurĂˇciĂłban fegyverenkĂ©nti bejegyzĂ©sek vannak a `Weapons` alatt, plusz globĂˇlis beĂˇllĂ­tĂˇsok:
 
-- `MissExpirySeconds`: mennyi ideig számít érvényesnek egy leadott lövés a találat párosításához.
-- `DefaultLanguage`: alapértelmezett nyelv, ha nincs játékos-specifikus nyelv (`en` alap).
+- `MissExpirySeconds`: mennyi ideig szĂˇmĂ­t Ă©rvĂ©nyesnek egy leadott lĂ¶vĂ©s a talĂˇlat pĂˇrosĂ­tĂˇsĂˇhoz.
+- `DefaultLanguage`: alapĂ©rtelmezett nyelv, ha nincs jĂˇtĂ©kos-specifikus nyelv (`en` alap).
 
-Fegyverenkénti paraméterek:
+FegyverenkĂ©nti paramĂ©terek:
 
-- `MaxAccuracy`: maximálisan megengedett találati arány (pl. `0.38 = 38%`).
-- `SampleCount`: gördülő mintaméret (hány lövést tartson meg a statisztikához).
-- `SafeDistance`: távolsági referencia a súlyozáshoz.
+- `MaxAccuracy`: maximĂˇlisan megengedett talĂˇlati arĂˇny (pl. `0.38 = 38%`).
+- `SampleCount`: gĂ¶rdĂĽlĹ‘ mintamĂ©ret (hĂˇny lĂ¶vĂ©st tartson meg a statisztikĂˇhoz).
+- `SafeDistance`: tĂˇvolsĂˇgi referencia a sĂşlyozĂˇshoz.
 
-Példa:
+PĂ©lda:
 
 ```json
 {
@@ -73,48 +73,49 @@ Példa:
 }
 ```
 
-## Nyelvi testreszabás
+## Nyelvi testreszabĂˇs
 
-A plugin kulcs-alapú üzeneteket használ, külön nyelvi JSON fájlokkal.
+A plugin kulcs-alapĂş ĂĽzeneteket hasznĂˇl, kĂĽlĂ¶n nyelvi JSON fĂˇjlokkal.
 
-Alap fájlok:
+Alap fĂˇjlok:
 
 - `oxide/lang/en/MogyAntiCheat.json`
 - `oxide/lang/hu/MogyAntiCheat.json`
 
-Lépések:
+LĂ©pĂ©sek:
 
-1. Szerkeszd a kívánt nyelvi JSON fájlt.
-2. Állítsd a `DefaultLanguage` értéket a configban.
-3. Plugin reload után ellenőrizd pl. `/ac-check` paranccsal.
-4. Opcionálisan használd: `/ac-lang <nyelvkód>` az alapértelmezett nyelv váltásához.
+1. Szerkeszd a kĂ­vĂˇnt nyelvi JSON fĂˇjlt.
+2. ĂllĂ­tsd a `DefaultLanguage` Ă©rtĂ©ket a configban.
+3. Plugin reload utĂˇn ellenĹ‘rizd pl. `/ac-check` paranccsal.
+4. OpcionĂˇlisan hasznĂˇld: `/ac-lang <nyelvkĂłd>` az alapĂ©rtelmezett nyelv vĂˇltĂˇsĂˇhoz.
 
 ## Parancsok (csak admin)
 
-- `/ac-check [jatekosnev]` - Részletes statisztika egy játékosról.
-- `/ac-list` - Online játékosok listázása átlag pontossággal és aktuális sebzés-szorzóval.
-- `/ac-reset [jatekosnev]` - Játékos statisztikáinak törlése.
-- `/ac-lang <nyelvkod>` - Alapértelmezett plugin nyelv állítása (pl. `en`, `hu`).
+- `/ac-check [jatekosnev]` - RĂ©szletes statisztika egy jĂˇtĂ©kosrĂłl.
+- `/ac-list` - Online jĂˇtĂ©kosok listĂˇzĂˇsa Ăˇtlag pontossĂˇggal Ă©s aktuĂˇlis sebzĂ©s-szorzĂłval.
+- `/ac-reset [jatekosnev]` - JĂˇtĂ©kos statisztikĂˇinak tĂ¶rlĂ©se.
+- `/ac-lang <nyelvkod>` - AlapĂ©rtelmezett plugin nyelv ĂˇllĂ­tĂˇsa (pl. `en`, `hu`).
 
-## Hogyan működik a sebzéscsökkentés
+## Hogyan mĹ±kĂ¶dik a sebzĂ©scsĂ¶kkentĂ©s
 
-A plugin fegyverenként számol nerfet, majd a legalacsonyabb (legszigorúbb) szorzót alkalmazza.
+A plugin fegyverenkĂ©nt szĂˇmol nerfet, majd a legalacsonyabb (legszigorĂşbb) szorzĂłt alkalmazza.
 
-- Kevés adatnál nincs büntetés (`History.Count < 10`).
-- Küszöb feletti pontosságnál a büntetés mértéke függ:
-  - a túllépés mértékétől,
-  - és a távolság-súlyozott teljesítménytől.
-- Szélsőséges esetben a kimenő sebzés 0-ra állhat.
+- KevĂ©s adatnĂˇl nincs bĂĽntetĂ©s (`History.Count < 10`).
+- KĂĽszĂ¶b feletti pontossĂˇgnĂˇl a bĂĽntetĂ©s mĂ©rtĂ©ke fĂĽgg:
+  - a tĂşllĂ©pĂ©s mĂ©rtĂ©kĂ©tĹ‘l,
+  - Ă©s a tĂˇvolsĂˇg-sĂşlyozott teljesĂ­tmĂ©nytĹ‘l.
+- SzĂ©lsĹ‘sĂ©ges esetben a kimenĹ‘ sebzĂ©s 0-ra Ăˇllhat.
 
-## Megjegyzések
+## MegjegyzĂ©sek
 
-- Ez elsősorban mitigációs eszköz, nem teljes anti-cheat ökoszisztéma.
-- Akkor működik a legjobban, ha a küszöbök a szerver PvP stílusára vannak hangolva.
-- Nagy Rust combat/meta változások után érdemes újrakalibrálni az értékeket.
+- Ez elsĹ‘sorban mitigĂˇciĂłs eszkĂ¶z, nem teljes anti-cheat Ă¶koszisztĂ©ma.
+- Akkor mĹ±kĂ¶dik a legjobban, ha a kĂĽszĂ¶bĂ¶k a szerver PvP stĂ­lusĂˇra vannak hangolva.
+- Nagy Rust combat/meta vĂˇltozĂˇsok utĂˇn Ă©rdemes ĂşjrakalibrĂˇlni az Ă©rtĂ©keket.
 
 ## Licenc
 
 MIT License.
 
 ---
-Készítette: **Mogy**
+KĂ©szĂ­tette: **Mogy**
+

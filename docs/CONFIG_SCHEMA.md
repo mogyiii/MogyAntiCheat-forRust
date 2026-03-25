@@ -29,14 +29,25 @@ This document defines config keys, types, defaults, and constraints.
 - Typical range: `10 - 100`
 - Meaning: Distance baseline used by weighted scoring.
 
-
 ## `DefaultLanguage`
 
 - Type: `string`
 - Default: `"en"`
 - Meaning: Default message language (implemented).
 - Constraint: should match an available language code (`en`, `hu`, ...).
-## Planned Keys (M1-M3)
+
+## `PublicApi`
+
+- Type: `object`
+- Purpose: controls extension API behavior and declared version.
+
+Fields:
+- `Enabled` (`bool`, default `true`)
+- `ApiVersion` (`string`, default `"1.0.0"`)
+- `EmitSuspicionEvents` (`bool`, default `true`)
+- `EmitPenaltyEvents` (`bool`, default `true`)
+
+## Planned Keys (M2+)
 
 ## `PenaltyTiers`
 
@@ -49,21 +60,8 @@ Planned tier object fields:
 - `DamageMultiplier` (`float`, range `0..1`)
 - `Action` (`string`, e.g., `warn`, `nerf`, `hard_nerf`)
 
-## `PublicApi`
-
-- Type: `object`
-- Purpose: control extension API behavior.
-
-Planned fields:
-- `Enabled` (`bool`)
-- `ApiVersion` (`string`)
-- `EmitSuspicionEvents` (`bool`)
-- `EmitPenaltyEvents` (`bool`)
-
 ## Validation Rules
 
 - Invalid numeric values should be clamped or rejected with clear warning logs.
 - Unknown keys should be ignored but reported in debug logs.
 - On invalid config, plugin should use safe defaults instead of crashing.
-
-

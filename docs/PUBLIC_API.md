@@ -1,68 +1,97 @@
-﻿# MogyAntiCheat Public API (Draft)
+﻿# MogyAntiCheat Public API
 
-This document defines the planned extension contract for external plugins.
-Current state: `Draft` (API not fully implemented yet).
+This document defines the public extension contract for external plugins.
+Current state: `Implemented` (milestone M3 baseline).
 
 ## Versioning
 
-- `ApiVersion`: `0.1-draft`
-- Breaking changes must increment major version and be documented.
+- Config key: `PublicApi.ApiVersion`
+- Current default: `1.0.0`
+- Method: `GetApiVersion()`
 
-## Planned Hooks
+Version policy:
+- Patch: typo/docs/non-breaking metadata adjustments.
+- Minor: additive fields/hooks/methods with backward compatibility.
+- Major: breaking change (rename/remove field, change payload shape, or semantic contract break).
+- Breaking changes must be documented in `CHANGELOG.md` and `docs/ROADMAP.md`.
+
+## Hook Contract
+
+All hooks are notification-only in `1.0.0` (return value is ignored).
 
 ## `OnMogyAcSuspicion`
 
 When called:
-- Triggered when a player exceeds a configured suspicion threshold.
+- Triggered once when a player+weapon enters suspicious state.
+- Trigger conditions are based on current weapon evaluation (`accuracy > maxAccuracy` with enough sample data).
 
-Payload (planned):
+Payload fields:
+- `string apiVersion`
 - `ulong playerId`
 - `string weaponShortName`
 - `float accuracy`
 - `float maxAccuracy`
 - `float weightedScore`
 - `float suggestedNerf`
-- `double timestampUtc`
-
-Return behavior (planned):
-- Read-only notification for now.
-- Future option: allow override/cancel by explicit return contract.
+- `int sampleCount`
+- `string timestampUtc` (ISO-8601 UTC)
 
 ## `OnMogyAcPenaltyApplied`
 
 When called:
-- Triggered when outgoing damage scaling is applied.
+- Triggered when outgoing damage scaling is applied (`appliedMultiplier < 1.0`) for non-admin attackers.
 
-Payload (planned):
+Payload fields:
+- `string apiVersion`
 - `ulong attackerId`
 - `ulong targetId`
 - `string weaponShortName`
 - `float appliedMultiplier`
 - `float originalDamage`
 - `float scaledDamage`
-- `double timestampUtc`
+- `string timestampUtc` (ISO-8601 UTC)
 
-Return behavior (planned):
-- Read-only notification.
+## Query Methods
 
-## Planned Query Methods
+## `GetApiVersion()`
+
+Returns:
+- `string` configured API version (`PublicApi.ApiVersion`).
 
 ## `GetPlayerAcState(ulong playerId)`
 
 Purpose:
-- Retrieve read-only anti-cheat summary for integration plugins.
+- Retrieve read-only anti-cheat summary for one player.
 
-Planned response fields:
-- `globalNerf`
-- `weapons[]` containing `accuracy`, `sampleCount`, `weightedScore`
+Returns:
+- `null` when no tracked data exists for the player.
+- Otherwise an object with:
+  - `apiVersion`
+  - `playerId`
+  - `globalNerf`
+  - `weapons` array
+  - `timestampUtc`
+
+Weapon entry fields:
+- `weaponShortName`
+- `accuracy`
+- `sampleCount`
+- `weightedScore`
+- `maxAccuracy`
+- `safeDistance`
+- `isSuspicious`
+- `suggestedNerf`
+
+## Config Controls
+
+Under `PublicApi`:
+- `Enabled` (`bool`) global API event gate.
+- `ApiVersion` (`string`) declared contract version.
+- `EmitSuspicionEvents` (`bool`) toggles `OnMogyAcSuspicion`.
+- `EmitPenaltyEvents` (`bool`) toggles `OnMogyAcPenaltyApplied`.
 
 ## Compatibility Contract
 
-- External plugins should guard for missing hooks/methods.
-- Deprecated fields remain for at least one minor version before removal.
-
-## Example Integration Ideas
-
-- Discord moderator alert plugin.
-- Admin dashboard plugin.
-- Escalation plugin (manual review queue, evidence snapshots).
+- External plugins should check method existence and null responses.
+- New fields may be added without notice in minor versions.
+- Field removals/renames require major bump.

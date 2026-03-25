@@ -1,6 +1,6 @@
 ﻿# MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.6.8).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.7.0).
 
 ## Purpose
 
@@ -19,6 +19,7 @@ In scope:
 - Accuracy and long-range weighted suspicion scoring.
 - Real-time outgoing damage scaling.
 - Data persistence and admin commands.
+- Public extension API (read-only query + event notifications).
 
 Out of scope:
 
@@ -35,12 +36,14 @@ Out of scope:
   - `WeaponData.PendingMisses`: pending shot timestamps + distances.
 - `_lastHitTime: Dictionary<ulong, float>`
   - Debounce map to avoid duplicate rapid hit processing.
+- `_activeSuspicionByWeapon: Dictionary<ulong, HashSet<string>>`
+  - Tracks currently suspicious weapons per player for transition-based event emission.
 
 Persistence:
 
 - Saved on `OnServerSave` and `Unload`.
 - Data file: `oxide/data/MogyAntiCheat_Stats.json`.
-- Only `History` is persisted; pending misses are runtime-only.
+- Only `History` is persisted; pending misses and active suspicion cache are runtime-only.
 
 ## Event Flow
 
@@ -61,7 +64,9 @@ Persistence:
 - Resolve active weapon and hit distance.
 - Load per-weapon `SampleCount` and global `MissExpirySeconds`.
 - Register hit into rolling history (`RegisterHit`).
+- Evaluate suspicion for active weapon and emit transition hook (if enabled).
 - Compute attacker nerf (`GetLowestNerf`) and scale outgoing damage if needed.
+- Emit penalty-applied hook after scaling (if enabled).
 
 ## Shot Correlation Rules
 
@@ -110,6 +115,27 @@ Admin exemption:
 
 - Nerf is not applied when attacker is admin.
 
+## Public API Contract
+
+Config under `PublicApi`:
+
+- `Enabled` (`bool`, default `true`)
+- `ApiVersion` (`string`, default `1.0.0`)
+- `EmitSuspicionEvents` (`bool`, default `true`)
+- `EmitPenaltyEvents` (`bool`, default `true`)
+
+Query methods:
+
+- `GetApiVersion()` -> configured API version string.
+- `GetPlayerAcState(ulong playerId)` -> read-only player anti-cheat snapshot or `null`.
+
+Hooks:
+
+- `OnMogyAcSuspicion(Dictionary<string, object> payload)`
+  - Emitted once when a player+weapon enters suspicious state.
+- `OnMogyAcPenaltyApplied(Dictionary<string, object> payload)`
+  - Emitted when outgoing damage scaling is applied.
+
 ## Configuration Contract
 
 Top-level keys:
@@ -117,6 +143,7 @@ Top-level keys:
 - `Weapons` (dictionary by weapon short name)
 - `MissExpirySeconds` (float)
 - `DefaultLanguage` (string, default `en`)
+- `PublicApi` (object)
 
 Each weapon requires:
 
@@ -161,8 +188,3 @@ When plugin behavior changes, update all of:
 1. `MogyAntiCheat.cs` version string.
 2. `README.en.md`.
 3. This file (`docs/SOURCE_OF_TRUTH.md`).
-
-
-
-
-

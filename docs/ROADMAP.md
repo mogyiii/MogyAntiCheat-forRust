@@ -26,24 +26,19 @@ RFC:
 
 ## M2 - Multi-Threshold Penalty Profiles
 
-Status: `Planned`
-Target: Q2-Q3 2026
+Status: `Deferred`
+Target: Re-evaluate after M3
 
-Goal:
-- Replace single-threshold logic with configurable penalty tiers.
+Reason:
+- Current mitigation philosophy is conservative, and aggressive tiering may increase false-positive impact.
 
-Deliverables:
-- New config structure for threshold tiers (warn, soft-nerf, hard-nerf).
-- Optional per-weapon override and global defaults.
-- Config validation with warnings on invalid tiers.
-
-Acceptance Criteria:
-- Operators can define multiple `%` levels with distinct outcomes.
-- Existing single-threshold config can be migrated safely.
+Policy Note:
+- Keep penalty behavior smooth and minimal by default.
+- Hard nerf should only be considered for extreme patterns (around 90%+ suspicious consistency), not standard high-skill play.
 
 ## M3 - Public Extension API for External Plugins
 
-Status: `Planned`
+Status: `Done`
 Target: Q3 2026
 
 Goal:
@@ -57,6 +52,9 @@ Deliverables:
 Acceptance Criteria:
 - Example external plugin can listen and react to suspicion/penalty events.
 - Breaking API changes are version-gated and documented.
+
+RFC:
+- `docs/RFCs/RFC-0002-public-extension-api.md`
 
 ## M4 - Optional External Webhook/HTTP Integration
 

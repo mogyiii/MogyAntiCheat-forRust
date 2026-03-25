@@ -7,14 +7,16 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MogyAntiCheat", "Mogy", "1.6.8")]
+    [Info("MogyAntiCheat", "Mogy", "1.7.0")]
     public class MogyAntiCheat : RustPlugin
     {
         private const string DefaultLanguageFallback = "en";
+        private const string PublicApiVersionCurrent = "1.0.0";
 
         private DynamicConfigFile _storedData;
         private readonly Dictionary<ulong, Dictionary<string, WeaponData>> _playerStats = new Dictionary<ulong, Dictionary<string, WeaponData>>();
         private readonly Dictionary<ulong, float> _lastHitTime = new Dictionary<ulong, float>();
+        private readonly Dictionary<ulong, HashSet<string>> _activeSuspicionByWeapon = new Dictionary<ulong, HashSet<string>>();
 
         private static readonly Dictionary<string, string> MessagesEn = new Dictionary<string, string>
         {
@@ -119,6 +121,18 @@ namespace Oxide.Plugins
             }
         }
 
+        private class WeaponEvaluation
+        {
+            public float Accuracy;
+            public float MaxAccuracy;
+            public float SafeDistance;
+            public float WeightedScore;
+            public float SuggestedNerf;
+            public bool HasEnoughData;
+            public bool IsSuspicious;
+            public int SampleCount;
+        }
+
         void Init()
         {
             lang.RegisterMessages(MessagesEn, this, "en");
@@ -203,6 +217,13 @@ namespace Oxide.Plugins
 
             Config["MissExpirySeconds"] = 20.0;
             Config["DefaultLanguage"] = DefaultLanguageFallback;
+            Config["PublicApi"] = new Dictionary<string, object>
+            {
+                ["Enabled"] = true,
+                ["ApiVersion"] = PublicApiVersionCurrent,
+                ["EmitSuspicionEvents"] = true,
+                ["EmitPenaltyEvents"] = true
+            };
             SaveConfig();
         }
 
@@ -214,6 +235,45 @@ namespace Oxide.Plugins
             {
                 Config["DefaultLanguage"] = DefaultLanguageFallback;
                 changed = true;
+            }
+
+            var publicApi = Config["PublicApi"] as Dictionary<string, object>;
+            if (publicApi == null)
+            {
+                Config["PublicApi"] = new Dictionary<string, object>
+                {
+                    ["Enabled"] = true,
+                    ["ApiVersion"] = PublicApiVersionCurrent,
+                    ["EmitSuspicionEvents"] = true,
+                    ["EmitPenaltyEvents"] = true
+                };
+                changed = true;
+            }
+            else
+            {
+                if (!publicApi.ContainsKey("Enabled"))
+                {
+                    publicApi["Enabled"] = true;
+                    changed = true;
+                }
+
+                if (!publicApi.ContainsKey("ApiVersion") || string.IsNullOrWhiteSpace(publicApi["ApiVersion"].ToString()))
+                {
+                    publicApi["ApiVersion"] = PublicApiVersionCurrent;
+                    changed = true;
+                }
+
+                if (!publicApi.ContainsKey("EmitSuspicionEvents"))
+                {
+                    publicApi["EmitSuspicionEvents"] = true;
+                    changed = true;
+                }
+
+                if (!publicApi.ContainsKey("EmitPenaltyEvents"))
+                {
+                    publicApi["EmitPenaltyEvents"] = true;
+                    changed = true;
+                }
             }
 
             if (changed) SaveConfig();
@@ -244,6 +304,79 @@ namespace Oxide.Plugins
         {
             var supported = GetSupportedLanguageCodes();
             return supported.Contains(NormalizeLanguageCode(code));
+        }
+
+        private Dictionary<string, object> GetPublicApiConfig()
+        {
+            var config = Config["PublicApi"] as Dictionary<string, object>;
+            if (config == null)
+            {
+                config = new Dictionary<string, object>
+                {
+                    ["Enabled"] = true,
+                    ["ApiVersion"] = PublicApiVersionCurrent,
+                    ["EmitSuspicionEvents"] = true,
+                    ["EmitPenaltyEvents"] = true
+                };
+                Config["PublicApi"] = config;
+                SaveConfig();
+            }
+
+            return config;
+        }
+
+        private bool IsPublicApiEnabled()
+        {
+            var config = GetPublicApiConfig();
+            if (!config.ContainsKey("Enabled")) return true;
+
+            try
+            {
+                return Convert.ToBoolean(config["Enabled"]);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        private bool ShouldEmitSuspicionEvents()
+        {
+            var config = GetPublicApiConfig();
+            if (!config.ContainsKey("EmitSuspicionEvents")) return true;
+
+            try
+            {
+                return Convert.ToBoolean(config["EmitSuspicionEvents"]);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        private bool ShouldEmitPenaltyEvents()
+        {
+            var config = GetPublicApiConfig();
+            if (!config.ContainsKey("EmitPenaltyEvents")) return true;
+
+            try
+            {
+                return Convert.ToBoolean(config["EmitPenaltyEvents"]);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        private string GetConfiguredApiVersion()
+        {
+            var config = GetPublicApiConfig();
+            if (!config.ContainsKey("ApiVersion")) return PublicApiVersionCurrent;
+
+            var value = config["ApiVersion"] != null ? config["ApiVersion"].ToString().Trim() : string.Empty;
+            return string.IsNullOrWhiteSpace(value) ? PublicApiVersionCurrent : value;
         }
 
         private string GetMessageFromPack(Dictionary<string, string> pack, string key)
@@ -373,11 +506,128 @@ namespace Oxide.Plugins
 
             weaponData.RegisterHit(dist, limit, expiry);
 
+            var evaluation = EvaluateWeapon(wName, weaponData);
+            ProcessSuspicionTransition(attacker, wName, evaluation);
+
             float globalNerf = GetLowestNerf(attacker.userID);
             if (!attacker.IsAdmin && globalNerf < 1.0f)
             {
+                float originalDamage = info.damageTypes.Total();
                 info.damageTypes.ScaleAll(globalNerf);
+                float scaledDamage = info.damageTypes.Total();
+                EmitPenaltyEvent(attacker, targetPlayer, wName, globalNerf, originalDamage, scaledDamage);
             }
+        }
+
+        private WeaponEvaluation EvaluateWeapon(string weaponName, WeaponData data)
+        {
+            var evaluation = new WeaponEvaluation
+            {
+                Accuracy = data.GetAccuracy(),
+                SampleCount = data.History.Count,
+                SuggestedNerf = 1f,
+                HasEnoughData = data.History.Count >= 10
+            };
+
+            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
+            if (weaponsCfg == null || !weaponsCfg.ContainsKey(weaponName))
+            {
+                evaluation.MaxAccuracy = 1f;
+                evaluation.SafeDistance = 1f;
+                evaluation.WeightedScore = data.GetWeightedScore(1f);
+                return evaluation;
+            }
+
+            var cfg = weaponsCfg[weaponName] as Dictionary<string, object>;
+            if (cfg == null)
+            {
+                evaluation.MaxAccuracy = 1f;
+                evaluation.SafeDistance = 1f;
+                evaluation.WeightedScore = data.GetWeightedScore(1f);
+                return evaluation;
+            }
+
+            evaluation.MaxAccuracy = Convert.ToSingle(cfg["MaxAccuracy"]);
+            evaluation.SafeDistance = Convert.ToSingle(cfg["SafeDistance"]);
+            evaluation.WeightedScore = data.GetWeightedScore(evaluation.SafeDistance);
+
+            if (!evaluation.HasEnoughData || evaluation.Accuracy <= evaluation.MaxAccuracy)
+            {
+                evaluation.IsSuspicious = false;
+                evaluation.SuggestedNerf = 1f;
+                return evaluation;
+            }
+
+            float excess = (evaluation.Accuracy - evaluation.MaxAccuracy) / (1.0f - evaluation.MaxAccuracy);
+            float penaltyFactor = excess * (evaluation.WeightedScore > 1.0f ? Mathf.Pow(evaluation.WeightedScore, 2f) : 1.0f);
+            float currentNerf = 1.0f - penaltyFactor;
+
+            if (evaluation.Accuracy > 0.95f && evaluation.WeightedScore > 1.2f) currentNerf = 0f;
+            if (currentNerf < 0.30f) currentNerf = 0f;
+
+            evaluation.SuggestedNerf = Mathf.Clamp(currentNerf, 0f, 1.0f);
+            evaluation.IsSuspicious = true;
+            return evaluation;
+        }
+
+        private void ProcessSuspicionTransition(BasePlayer attacker, string weaponName, WeaponEvaluation evaluation)
+        {
+            if (attacker == null || !IsPublicApiEnabled() || !ShouldEmitSuspicionEvents()) return;
+
+            HashSet<string> suspiciousWeapons;
+            if (!_activeSuspicionByWeapon.TryGetValue(attacker.userID, out suspiciousWeapons))
+            {
+                suspiciousWeapons = new HashSet<string>();
+                _activeSuspicionByWeapon[attacker.userID] = suspiciousWeapons;
+            }
+
+            if (!evaluation.IsSuspicious)
+            {
+                suspiciousWeapons.Remove(weaponName);
+                return;
+            }
+
+            if (suspiciousWeapons.Contains(weaponName)) return;
+
+            suspiciousWeapons.Add(weaponName);
+            EmitSuspicionEvent(attacker.userID, weaponName, evaluation);
+        }
+
+        private void EmitSuspicionEvent(ulong playerId, string weaponName, WeaponEvaluation evaluation)
+        {
+            var payload = new Dictionary<string, object>
+            {
+                ["apiVersion"] = GetConfiguredApiVersion(),
+                ["playerId"] = playerId,
+                ["weaponShortName"] = weaponName,
+                ["accuracy"] = evaluation.Accuracy,
+                ["maxAccuracy"] = evaluation.MaxAccuracy,
+                ["weightedScore"] = evaluation.WeightedScore,
+                ["suggestedNerf"] = evaluation.SuggestedNerf,
+                ["sampleCount"] = evaluation.SampleCount,
+                ["timestampUtc"] = DateTime.UtcNow.ToString("o")
+            };
+
+            Interface.CallHook("OnMogyAcSuspicion", payload);
+        }
+
+        private void EmitPenaltyEvent(BasePlayer attacker, BasePlayer target, string weaponName, float appliedMultiplier, float originalDamage, float scaledDamage)
+        {
+            if (attacker == null || !IsPublicApiEnabled() || !ShouldEmitPenaltyEvents()) return;
+
+            var payload = new Dictionary<string, object>
+            {
+                ["apiVersion"] = GetConfiguredApiVersion(),
+                ["attackerId"] = attacker.userID,
+                ["targetId"] = target != null ? target.userID : 0UL,
+                ["weaponShortName"] = weaponName,
+                ["appliedMultiplier"] = appliedMultiplier,
+                ["originalDamage"] = originalDamage,
+                ["scaledDamage"] = scaledDamage,
+                ["timestampUtc"] = DateTime.UtcNow.ToString("o")
+            };
+
+            Interface.CallHook("OnMogyAcPenaltyApplied", payload);
         }
 
         private float GetLowestNerf(ulong userId)
@@ -386,34 +636,54 @@ namespace Oxide.Plugins
             if (!_playerStats.TryGetValue(userId, out byWeapon)) return 1.0f;
 
             float lowestNerf = 1.0f;
-            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
 
             foreach (var weaponEntry in byWeapon)
             {
-                if (weaponsCfg == null || !weaponsCfg.ContainsKey(weaponEntry.Key)) continue;
-
-                var cfg = weaponsCfg[weaponEntry.Key] as Dictionary<string, object>;
-                var data = weaponEntry.Value;
-                if (cfg == null || data.History.Count < 10) continue;
-
-                float acc = data.GetAccuracy();
-                float max = Convert.ToSingle(cfg["MaxAccuracy"]);
-                float safe = Convert.ToSingle(cfg["SafeDistance"]);
-
-                if (acc > max)
-                {
-                    float distW = data.GetWeightedScore(safe);
-                    float excess = (acc - max) / (1.0f - max);
-                    float penaltyFactor = excess * (distW > 1.0f ? Mathf.Pow(distW, 2f) : 1.0f);
-
-                    float currentNerf = 1.0f - penaltyFactor;
-                    if (acc > 0.95f && distW > 1.2f) currentNerf = 0f;
-                    if (currentNerf < 0.30f) currentNerf = 0f;
-                    if (currentNerf < lowestNerf) lowestNerf = currentNerf;
-                }
+                var evaluation = EvaluateWeapon(weaponEntry.Key, weaponEntry.Value);
+                if (evaluation.SuggestedNerf < lowestNerf) lowestNerf = evaluation.SuggestedNerf;
             }
 
             return Mathf.Clamp(lowestNerf, 0f, 1.0f);
+        }
+
+        object GetApiVersion()
+        {
+            return GetConfiguredApiVersion();
+        }
+
+        object GetPlayerAcState(ulong playerId)
+        {
+            Dictionary<string, WeaponData> byWeapon;
+            if (!_playerStats.TryGetValue(playerId, out byWeapon))
+            {
+                return null;
+            }
+
+            var weapons = new List<Dictionary<string, object>>();
+            foreach (var weaponEntry in byWeapon)
+            {
+                var evaluation = EvaluateWeapon(weaponEntry.Key, weaponEntry.Value);
+                weapons.Add(new Dictionary<string, object>
+                {
+                    ["weaponShortName"] = weaponEntry.Key,
+                    ["accuracy"] = evaluation.Accuracy,
+                    ["sampleCount"] = evaluation.SampleCount,
+                    ["weightedScore"] = evaluation.WeightedScore,
+                    ["maxAccuracy"] = evaluation.MaxAccuracy,
+                    ["safeDistance"] = evaluation.SafeDistance,
+                    ["isSuspicious"] = evaluation.IsSuspicious,
+                    ["suggestedNerf"] = evaluation.SuggestedNerf
+                });
+            }
+
+            return new Dictionary<string, object>
+            {
+                ["apiVersion"] = GetConfiguredApiVersion(),
+                ["playerId"] = playerId,
+                ["globalNerf"] = GetLowestNerf(playerId),
+                ["weapons"] = weapons,
+                ["timestampUtc"] = DateTime.UtcNow.ToString("o")
+            };
         }
 
         [ChatCommand("ac-check")]
@@ -509,6 +779,7 @@ namespace Oxide.Plugins
             BasePlayer target = BasePlayer.Find(args[0]);
             if (target != null && _playerStats.Remove(target.userID))
             {
+                _activeSuspicionByWeapon.Remove(target.userID);
                 SendReply(player, $"<color=#55ff55>{Msg(player, "StatsResetSuccess", target.displayName)}</color>");
             }
             else

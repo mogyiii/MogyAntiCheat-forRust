@@ -1,13 +1,14 @@
 ﻿# MogyAntiCheat for Rust (Oxide/uMod)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.6.8-blue)
+![Version](https://img.shields.io/badge/version-1.7.0-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
+
 ## Project Documentation
 
 - Source of truth: `docs/SOURCE_OF_TRUTH.md`
 - Roadmap: `docs/ROADMAP.md`
-- Public API (draft): `docs/PUBLIC_API.md`
+- Public API: `docs/PUBLIC_API.md`
 - Config schema: `docs/CONFIG_SCHEMA.md`
 - RFC template: `docs/RFCs/TEMPLATE.md`
 - Change log: `CHANGELOG.md`
@@ -33,6 +34,7 @@ The plugin does not scan files or processes. It observes combat events and compu
 - Ignores buildings and NPC targets.
 - Admin players are exempt from damage nerfing.
 - In-game admin chat commands for checks and resets.
+- Public extension API for external plugins (M3 baseline).
 
 ## Installation
 
@@ -43,32 +45,17 @@ The plugin does not scan files or processes. It observes combat events and compu
 
 ## Configuration
 
-Default config contains per-weapon entries under `Weapons` and one global setting:
+Default config contains per-weapon entries under `Weapons` and global settings:
 
 - `MissExpirySeconds`: How long a fired shot can stay in pending state before it is considered stale.
 - `DefaultLanguage`: Default language for messages without player-specific language (`en` by default).
+- `PublicApi`: Extension API controls (`Enabled`, `ApiVersion`, event toggles).
 
 Each weapon entry supports:
 
 - `MaxAccuracy`: Maximum allowed hit ratio (0.38 = 38%).
 - `SampleCount`: Rolling history size for that weapon.
 - `SafeDistance`: Distance baseline for long-range weighting.
-
-Example:
-
-```json
-{
-  "Weapons": {
-    "rifle.ak": {
-      "MaxAccuracy": 0.38,
-      "SampleCount": 40,
-      "SafeDistance": 25.0
-    }
-  },
-  "MissExpirySeconds": 20.0
-}
-```
-
 
 ## Language Customization
 
@@ -85,12 +72,19 @@ To customize text:
 2. Set `DefaultLanguage` in `MogyAntiCheat.json` config.
 3. Reload plugin and verify `/ac-check` output.
 4. Optional: use `/ac-lang <languageCode>` as admin for runtime default language switch.
+
 ## Commands (Admin Only)
 
 - `/ac-check [playerName]` - Show detailed anti-cheat stats for one player.
 - `/ac-list` - List online players with average accuracy and current damage multiplier.
-- /ac-reset [playerName] - Clear a player's tracked stats.
+- `/ac-reset [playerName]` - Clear a player's tracked stats.
 - `/ac-lang <languageCode>` - Set plugin default language (e.g., `en`, `hu`).
+
+## Public Extension API
+
+- Hooks: `OnMogyAcSuspicion`, `OnMogyAcPenaltyApplied`
+- Query methods: `GetApiVersion()`, `GetPlayerAcState(ulong playerId)`
+- Payload and compatibility contract: `docs/PUBLIC_API.md`
 
 ## How Nerfing Works
 
@@ -114,10 +108,3 @@ MIT License.
 
 ---
 Created by **Mogy**
-
-
-
-
-
-
-
