@@ -6,6 +6,19 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+- Runtime admin command `/ac-debug <on|off>` to toggle `DebugMode` and persist it in config.
+- Runtime admin command `/ac-weapon <weapon|active> <MaxAccuracy|SampleCount|SafeDistance> <value>` to edit weapon thresholds in-game.
+- Runtime admin commands `/ac-debug-log [clear]` and `/ac-why [weapon|active]` for file-based diagnostics and nerf reason inspection.
+- Runtime admin command `/ac-help` to list all available MogyAC commands in chat.
+
+### Changed
+- Plugin version bumped to `1.8.0` in source metadata.
+- Language selection now follows plugin `DefaultLanguage` deterministically for command/report messages.
+- Hungarian language pack and Hungarian README text updated with proper UTF-8 characters.
+- In `DebugMode`, admin nerf is applied too and NPC targets are included in hit analysis.
+- `DebugMode` target filtering broadened to all non-building combat entities (covers `entity.spawn player` debug targets too).
+
 ## [1.7.0] - 2026-03-25
 
 ### Added
@@ -42,3 +55,4 @@ The format is based on Keep a Changelog.
 - Reworked Hungarian `README.md` structure and aligned version badge to `1.6.8`.
 - i18n foundation implemented in plugin code (`MogyAntiCheat.cs`): language keys, `DefaultLanguage`, and localized admin command messages.
 - Added admin command `/ac-lang <languageCode>` for runtime default language switching.
+

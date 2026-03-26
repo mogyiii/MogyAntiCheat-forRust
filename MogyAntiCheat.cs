@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using Oxide.Core;
 using Oxide.Core.Configuration;
@@ -7,13 +9,15 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MogyAntiCheat", "Mogy", "1.7.0")]
+    [Info("MogyAntiCheat", "Mogy", "1.8.0")]
     public class MogyAntiCheat : RustPlugin
     {
         private const string DefaultLanguageFallback = "en";
         private const string PublicApiVersionCurrent = "1.0.0";
+        private const string DebugLogFileName = "MogyAntiCheat_Debug.log";
 
         private DynamicConfigFile _storedData;
+        private string _debugLogPath;
         private readonly Dictionary<ulong, Dictionary<string, WeaponData>> _playerStats = new Dictionary<ulong, Dictionary<string, WeaponData>>();
         private readonly Dictionary<ulong, float> _lastHitTime = new Dictionary<ulong, float>();
         private readonly Dictionary<ulong, HashSet<string>> _activeSuspicionByWeapon = new Dictionary<ulong, HashSet<string>>();
@@ -33,25 +37,79 @@ namespace Oxide.Plugins
             ["LangUsage"] = "Usage: /ac-lang <languageCode>",
             ["LangUpdated"] = "Default language set to: {0}.",
             ["LangAlreadySet"] = "Default language is already: {0}.",
-            ["LangUnsupported"] = "Unsupported language: {0}. Supported: {1}"
+            ["LangUnsupported"] = "Unsupported language: {0}. Supported: {1}",
+            ["DebugUsage"] = "Usage: /ac-debug <on|off>",
+            ["DebugStatus"] = "Debug mode is currently: {0}.",
+            ["DebugUpdated"] = "Debug mode set to: {0}.",
+            ["DebugAlreadySet"] = "Debug mode is already: {0}.",
+            ["WeaponCfgUsage"] = "Usage: /ac-weapon <weaponShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <value>",
+            ["WeaponCfgNoActiveWeapon"] = "No active projectile weapon found.",
+            ["WeaponCfgFieldInvalid"] = "Invalid field: {0}. Allowed: MaxAccuracy, SampleCount, SafeDistance.",
+            ["WeaponCfgValueInvalid"] = "Invalid value for {0}: {1}.",
+            ["WeaponCfgUpdated"] = "Weapon config updated: {0}.{1} = {2}.",
+            ["WhyUsage"] = "Usage: /ac-why [weaponShortName|active]",
+            ["WhyNoWeaponData"] = "No tracked data for weapon: {0}.",
+            ["WhyNoConfig"] = "No config found for weapon: {0}. Add it with /ac-weapon.",
+            ["WhySummary"] = "Weapon: {0} | Acc: {1:P1} | Shots: {2} | Max: {3:P1} | Weighted: {4:F2} | SuggestedNerf: {5:P0} | GlobalNerf: {6:P0}",
+            ["WhyReasonNoData"] = "Reason: not enough samples yet (minimum 10).",
+            ["WhyReasonBelowThreshold"] = "Reason: accuracy is within configured threshold.",
+            ["DebugLogPath"] = "Debug log file: {0}",
+            ["DebugLogCleared"] = "Debug log file cleared.",
+            ["HelpHeader"] = "=== MogyAC COMMANDS ===",
+            ["HelpCheck"] = "/ac-check [playerName] - Show detailed anti-cheat stats for a player.",
+            ["HelpList"] = "/ac-list - List online players with average accuracy and damage multiplier.",
+            ["HelpReset"] = "/ac-reset <playerName> - Clear tracked stats for a player.",
+            ["HelpLang"] = "/ac-lang <languageCode> - Set default plugin language.",
+            ["HelpDebug"] = "/ac-debug <on|off> - Toggle debug mode.",
+            ["HelpWeapon"] = "/ac-weapon <weapon|active> <MaxAccuracy|SampleCount|SafeDistance> <value> - Update weapon config.",
+            ["HelpDebugLog"] = "/ac-debug-log [clear] - Show or clear debug log file.",
+            ["HelpWhy"] = "/ac-why [weapon|active] - Explain why nerf is or is not applied.",
+            ["HelpHelp"] = "/ac-help - Show this command list."
         };
 
         private static readonly Dictionary<string, string> MessagesHu = new Dictionary<string, string>
         {
-            ["NoPermission"] = "Nincs jogosultsagod ehhez a parancshoz.",
-            ["PlayerNotFound"] = "Jatekos nem talalhato.",
+            ["NoPermission"] = "Nincs jogosultságod ehhez a parancshoz.",
+            ["PlayerNotFound"] = "Játékos nem található.",
             ["NoData"] = "Nincs adat.",
             ["StatsHeader"] = "=== MogyAC STAT: {0} ===",
-            ["GlobalDamageLabel"] = "GLOBAL SEBZES",
-            ["WeaponLine"] = "{0}: {1:P1} ({2} loves)",
+            ["GlobalDamageLabel"] = "GLOBAL SEBZÉS",
+            ["WeaponLine"] = "{0}: {1:P1} ({2} lövés)",
             ["ActiveListHeader"] = "=== MogyAC AKTIV LISTA ===",
-            ["ActiveListColumns"] = "Jatekos | Atlag Acc | Sebzes",
-            ["StatsResetSuccess"] = "[MogyAC] {0} statisztikai torolve.",
-            ["ResetUsage"] = "Hasznalat: /ac-reset <jatekosnev>",
-            ["LangUsage"] = "Hasznalat: /ac-lang <nyelvkod>",
-            ["LangUpdated"] = "Alapertelmezett nyelv beallitva: {0}.",
-            ["LangAlreadySet"] = "Az alapertelmezett nyelv mar ez: {0}.",
-            ["LangUnsupported"] = "Nem tamogatott nyelv: {0}. Tamogatott: {1}"
+            ["ActiveListColumns"] = "Játékos | Átlag Acc | Sebzés",
+            ["StatsResetSuccess"] = "[MogyAC] {0} statisztikái törölve.",
+            ["ResetUsage"] = "Használat: /ac-reset <játékosnév>",
+            ["LangUsage"] = "Használat: /ac-lang <nyelvkód>",
+            ["LangUpdated"] = "Alapértelmezett nyelv beállítva: {0}.",
+            ["LangAlreadySet"] = "Az alapértelmezett nyelv már ez: {0}.",
+            ["LangUnsupported"] = "Nem támogatott nyelv: {0}. Támogatott: {1}",
+            ["DebugUsage"] = "Használat: /ac-debug <on|off>",
+            ["DebugStatus"] = "A debug mód jelenleg: {0}.",
+            ["DebugUpdated"] = "Debug mód beállítva: {0}.",
+            ["DebugAlreadySet"] = "A debug mód már ez: {0}.",
+            ["WeaponCfgUsage"] = "Használat: /ac-weapon <fegyverShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <érték>",
+            ["WeaponCfgNoActiveWeapon"] = "Nincs aktív lövedékes fegyver.",
+            ["WeaponCfgFieldInvalid"] = "Érvénytelen mező: {0}. Engedélyezett: MaxAccuracy, SampleCount, SafeDistance.",
+            ["WeaponCfgValueInvalid"] = "Érvénytelen érték ehhez: {0}: {1}.",
+            ["WeaponCfgUpdated"] = "Fegyver konfiguráció frissítve: {0}.{1} = {2}.",
+            ["WhyUsage"] = "Használat: /ac-why [weaponShortName|active]",
+            ["WhyNoWeaponData"] = "Nincs tárolt adat ehhez a fegyverhez: {0}.",
+            ["WhyNoConfig"] = "Nincs konfiguráció ehhez a fegyverhez: {0}. Hozzáadás: /ac-weapon.",
+            ["WhySummary"] = "Fegyver: {0} | Acc: {1:P1} | Lövés: {2} | Max: {3:P1} | Súlyozott: {4:F2} | JavasoltNerf: {5:P0} | GlobálNerf: {6:P0}",
+            ["WhyReasonNoData"] = "Ok: még nincs elég minta (minimum 10).",
+            ["WhyReasonBelowThreshold"] = "Ok: a pontosság a beállított küszöbön belül van.",
+            ["DebugLogPath"] = "Debug log fájl: {0}",
+            ["DebugLogCleared"] = "Debug log fájl törölve.",
+            ["HelpHeader"] = "=== MogyAC PARANCSOK ===",
+            ["HelpCheck"] = "/ac-check [jatekosnev] - Részletes anti-cheat stat egy játékosról.",
+            ["HelpList"] = "/ac-list - Online játékosok listázása átlag pontossággal és sebzés szorzóval.",
+            ["HelpReset"] = "/ac-reset <jatekosnev> - Játékos követett statjainak törlése.",
+            ["HelpLang"] = "/ac-lang <nyelvkod> - Alapértelmezett plugin nyelv beállítása.",
+            ["HelpDebug"] = "/ac-debug <on|off> - Debug mód ki/be kapcsolása.",
+            ["HelpWeapon"] = "/ac-weapon <fegyver|active> <MaxAccuracy|SampleCount|SafeDistance> <ertek> - Fegyver config frissítése.",
+            ["HelpDebugLog"] = "/ac-debug-log [clear] - Debug log fájl útvonala vagy törlése.",
+            ["HelpWhy"] = "/ac-why [weapon|active] - Megmutatja, miért (nem) aktív a nerf.",
+            ["HelpHelp"] = "/ac-help - Ez a parancslista."
         };
 
         private struct ShotResult
@@ -139,6 +197,7 @@ namespace Oxide.Plugins
             lang.RegisterMessages(MessagesHu, this, "hu");
 
             _storedData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_Stats");
+            _debugLogPath = Path.Combine(Interface.Oxide.DataDirectory, DebugLogFileName);
             LoadStats();
             EnsureConfigDefaults();
         }
@@ -217,6 +276,7 @@ namespace Oxide.Plugins
 
             Config["MissExpirySeconds"] = 20.0;
             Config["DefaultLanguage"] = DefaultLanguageFallback;
+            Config["DebugMode"] = false;
             Config["PublicApi"] = new Dictionary<string, object>
             {
                 ["Enabled"] = true,
@@ -234,6 +294,12 @@ namespace Oxide.Plugins
             if (Config["DefaultLanguage"] == null)
             {
                 Config["DefaultLanguage"] = DefaultLanguageFallback;
+                changed = true;
+            }
+
+            if (Config["DebugMode"] == null)
+            {
+                Config["DebugMode"] = false;
                 changed = true;
             }
 
@@ -288,6 +354,61 @@ namespace Oxide.Plugins
         private string NormalizeLanguageCode(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
+        }
+
+        private string NormalizeBoolText(bool value)
+        {
+            return value ? "on" : "off";
+        }
+
+        private bool IsDebugEnabled()
+        {
+            if (Config["DebugMode"] == null) return false;
+            try
+            {
+                return Convert.ToBoolean(Config["DebugMode"]);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void DebugLog(string message)
+        {
+            if (!IsDebugEnabled()) return;
+
+            string line = $"{DateTime.UtcNow:O} [DEBUG] {message}";
+            Puts(line);
+            try
+            {
+                File.AppendAllText(_debugLogPath, line + Environment.NewLine);
+            }
+            catch (Exception ex)
+            {
+                Puts("[DEBUG] Failed to write debug log file: " + ex.Message);
+            }
+        }
+
+        private bool TryParseDebugModeArg(string value, out bool enabled)
+        {
+            enabled = false;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            string normalized = value.Trim().ToLowerInvariant();
+            if (normalized == "on" || normalized == "1" || normalized == "true")
+            {
+                enabled = true;
+                return true;
+            }
+
+            if (normalized == "off" || normalized == "0" || normalized == "false")
+            {
+                enabled = false;
+                return true;
+            }
+
+            return false;
         }
 
         private List<string> GetSupportedLanguageCodes()
@@ -398,21 +519,7 @@ namespace Oxide.Plugins
 
         private string Msg(BasePlayer player, string key, params object[] args)
         {
-            string message = null;
-
-            if (player != null)
-            {
-                message = lang.GetMessage(key, this, player.UserIDString);
-                if (string.IsNullOrEmpty(message) || message == key)
-                {
-                    message = null;
-                }
-            }
-
-            if (string.IsNullOrEmpty(message))
-            {
-                message = GetConfiguredFallbackMessage(key);
-            }
+            string message = GetConfiguredFallbackMessage(key);
 
             if (string.IsNullOrEmpty(message))
             {
@@ -459,8 +566,11 @@ namespace Oxide.Plugins
             if (info == null || info.InitiatorPlayer == null || entity == null) return;
             if (entity is BuildingBlock) return;
 
+            bool debugMode = IsDebugEnabled();
             BasePlayer targetPlayer = entity as BasePlayer;
-            if (targetPlayer == null || targetPlayer.IsNpc || !targetPlayer.userID.IsSteamId()) return;
+            bool isValidRealPlayerTarget = targetPlayer != null && !targetPlayer.IsNpc && targetPlayer.userID.IsSteamId();
+            bool isValidDebugTarget = debugMode && (entity is BaseCombatEntity);
+            if (!isValidRealPlayerTarget && !isValidDebugTarget) return;
 
             BasePlayer attacker = info.InitiatorPlayer;
             if (attacker.IsNpc || !attacker.userID.IsSteamId()) return;
@@ -510,12 +620,23 @@ namespace Oxide.Plugins
             ProcessSuspicionTransition(attacker, wName, evaluation);
 
             float globalNerf = GetLowestNerf(attacker.userID);
-            if (!attacker.IsAdmin && globalNerf < 1.0f)
+            bool shouldApplyNerfToAttacker = !attacker.IsAdmin || debugMode;
+            if (debugMode)
+            {
+                DebugLog($"Damage check: attacker={attacker.displayName} ({attacker.userID}), target={entity.ShortPrefabName}, weapon={wName}, acc={evaluation.Accuracy:P2}, max={evaluation.MaxAccuracy:P2}, globalNerf={globalNerf:P2}, applyNerf={shouldApplyNerfToAttacker}");
+            }
+
+            if (shouldApplyNerfToAttacker && globalNerf < 1.0f)
             {
                 float originalDamage = info.damageTypes.Total();
                 info.damageTypes.ScaleAll(globalNerf);
                 float scaledDamage = info.damageTypes.Total();
                 EmitPenaltyEvent(attacker, targetPlayer, wName, globalNerf, originalDamage, scaledDamage);
+            }
+            else if (debugMode)
+            {
+                if (!shouldApplyNerfToAttacker) DebugLog("Nerf skipped: attacker exemption active.");
+                else DebugLog("Nerf skipped: global nerf is 100%.");
             }
         }
 
@@ -590,6 +711,7 @@ namespace Oxide.Plugins
             if (suspiciousWeapons.Contains(weaponName)) return;
 
             suspiciousWeapons.Add(weaponName);
+            DebugLog($"Suspicion entered: player={attacker.displayName} ({attacker.userID}), weapon={weaponName}, accuracy={evaluation.Accuracy:P2}, nerf={evaluation.SuggestedNerf:P2}");
             EmitSuspicionEvent(attacker.userID, weaponName, evaluation);
         }
 
@@ -627,7 +749,105 @@ namespace Oxide.Plugins
                 ["timestampUtc"] = DateTime.UtcNow.ToString("o")
             };
 
+            DebugLog($"Penalty applied: attacker={attacker.displayName} ({attacker.userID}), target={(target != null ? target.displayName : "n/a")}, weapon={weaponName}, multiplier={appliedMultiplier:F2}, damage={originalDamage:F1}->{scaledDamage:F1}");
             Interface.CallHook("OnMogyAcPenaltyApplied", payload);
+        }
+
+        private string ResolveWeaponNameFromArgument(BasePlayer player, string weaponArg)
+        {
+            if (!string.Equals(weaponArg, "active", StringComparison.OrdinalIgnoreCase))
+            {
+                return weaponArg.Trim();
+            }
+
+            var activeWeapon = player.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
+            return activeWeapon == null ? string.Empty : activeWeapon.ShortPrefabName.Replace(".entity", "");
+        }
+
+        private bool TrySetWeaponConfigValue(string weaponName, string fieldArg, string valueArg, out string canonicalField, out string normalizedValue)
+        {
+            canonicalField = null;
+            normalizedValue = null;
+
+            if (string.IsNullOrWhiteSpace(weaponName) || string.IsNullOrWhiteSpace(fieldArg) || string.IsNullOrWhiteSpace(valueArg))
+            {
+                return false;
+            }
+
+            string field = fieldArg.Trim().ToLowerInvariant();
+            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
+            if (weaponsCfg == null)
+            {
+                weaponsCfg = new Dictionary<string, object>();
+                Config["Weapons"] = weaponsCfg;
+            }
+
+            Dictionary<string, object> weaponCfg;
+            if (weaponsCfg.ContainsKey(weaponName))
+            {
+                weaponCfg = weaponsCfg[weaponName] as Dictionary<string, object>;
+                if (weaponCfg == null)
+                {
+                    weaponCfg = new Dictionary<string, object>();
+                    weaponsCfg[weaponName] = weaponCfg;
+                }
+            }
+            else
+            {
+                weaponCfg = new Dictionary<string, object>();
+                weaponsCfg[weaponName] = weaponCfg;
+            }
+
+            if (field == "maxaccuracy")
+            {
+                float parsed;
+                if (!TryParseFloatValue(valueArg, out parsed)) return false;
+                if (parsed < 0f || parsed > 1f) return false;
+                weaponCfg["MaxAccuracy"] = Math.Round(parsed, 3);
+                canonicalField = "MaxAccuracy";
+                normalizedValue = parsed.ToString("0.###");
+                EnsureWeaponConfigEntryDefaults(weaponCfg);
+                return true;
+            }
+
+            if (field == "samplecount")
+            {
+                int parsed;
+                if (!int.TryParse(valueArg, out parsed)) return false;
+                if (parsed < 1) return false;
+                weaponCfg["SampleCount"] = parsed;
+                canonicalField = "SampleCount";
+                normalizedValue = parsed.ToString();
+                EnsureWeaponConfigEntryDefaults(weaponCfg);
+                return true;
+            }
+
+            if (field == "safedistance")
+            {
+                float parsed;
+                if (!TryParseFloatValue(valueArg, out parsed)) return false;
+                if (parsed <= 0f) return false;
+                weaponCfg["SafeDistance"] = Math.Round(parsed, 2);
+                canonicalField = "SafeDistance";
+                normalizedValue = parsed.ToString("0.##");
+                EnsureWeaponConfigEntryDefaults(weaponCfg);
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryParseFloatValue(string raw, out float value)
+        {
+            if (float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) return true;
+            return float.TryParse(raw, NumberStyles.Float, CultureInfo.CurrentCulture, out value);
+        }
+
+        private void EnsureWeaponConfigEntryDefaults(Dictionary<string, object> weaponCfg)
+        {
+            if (!weaponCfg.ContainsKey("MaxAccuracy")) weaponCfg["MaxAccuracy"] = 0.40;
+            if (!weaponCfg.ContainsKey("SampleCount")) weaponCfg["SampleCount"] = 40;
+            if (!weaponCfg.ContainsKey("SafeDistance")) weaponCfg["SafeDistance"] = 25.0;
         }
 
         private float GetLowestNerf(ulong userId)
@@ -824,7 +1044,188 @@ namespace Oxide.Plugins
             SaveConfig();
             SendReply(player, Msg(player, "LangUpdated", requested));
         }
+
+        [ChatCommand("ac-debug")]
+        void CmdAcDebug(BasePlayer player, string command, string[] args)
+        {
+            if (!player.IsAdmin)
+            {
+                SendReply(player, Msg(player, "NoPermission"));
+                return;
+            }
+
+            bool current = IsDebugEnabled();
+            if (args.Length == 0)
+            {
+                SendReply(player, Msg(player, "DebugStatus", NormalizeBoolText(current)));
+                return;
+            }
+
+            bool requested;
+            if (!TryParseDebugModeArg(args[0], out requested))
+            {
+                SendReply(player, Msg(player, "DebugUsage"));
+                return;
+            }
+
+            if (requested == current)
+            {
+                SendReply(player, Msg(player, "DebugAlreadySet", NormalizeBoolText(requested)));
+                return;
+            }
+
+            Config["DebugMode"] = requested;
+            SaveConfig();
+            SendReply(player, Msg(player, "DebugUpdated", NormalizeBoolText(requested)));
+            DebugLog("Debug mode changed via chat command.");
+        }
+
+        [ChatCommand("ac-weapon")]
+        void CmdAcWeapon(BasePlayer player, string command, string[] args)
+        {
+            if (!player.IsAdmin)
+            {
+                SendReply(player, Msg(player, "NoPermission"));
+                return;
+            }
+
+            if (args.Length < 3)
+            {
+                SendReply(player, Msg(player, "WeaponCfgUsage"));
+                return;
+            }
+
+            string weaponName = ResolveWeaponNameFromArgument(player, args[0]);
+            if (string.IsNullOrWhiteSpace(weaponName))
+            {
+                SendReply(player, Msg(player, "WeaponCfgNoActiveWeapon"));
+                return;
+            }
+
+            string field = args[1];
+            string value = args[2];
+
+            string canonicalField;
+            string normalizedValue;
+            if (!TrySetWeaponConfigValue(weaponName, field, value, out canonicalField, out normalizedValue))
+            {
+                string loweredField = field.Trim().ToLowerInvariant();
+                bool knownField = loweredField == "maxaccuracy" || loweredField == "samplecount" || loweredField == "safedistance";
+                SendReply(player, knownField
+                    ? Msg(player, "WeaponCfgValueInvalid", field, value)
+                    : Msg(player, "WeaponCfgFieldInvalid", field));
+                return;
+            }
+
+            SaveConfig();
+            SendReply(player, Msg(player, "WeaponCfgUpdated", weaponName, canonicalField, normalizedValue));
+            DebugLog($"Weapon config changed by {player.displayName} ({player.userID}): {weaponName}.{canonicalField}={normalizedValue}");
+        }
+
+        [ChatCommand("ac-debug-log")]
+        void CmdAcDebugLog(BasePlayer player, string command, string[] args)
+        {
+            if (!player.IsAdmin)
+            {
+                SendReply(player, Msg(player, "NoPermission"));
+                return;
+            }
+
+            if (args.Length > 0 && string.Equals(args[0], "clear", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    File.WriteAllText(_debugLogPath, string.Empty);
+                    SendReply(player, Msg(player, "DebugLogCleared"));
+                }
+                catch (Exception ex)
+                {
+                    SendReply(player, "[MogyAC] Debug log clear failed: " + ex.Message);
+                }
+                return;
+            }
+
+            SendReply(player, Msg(player, "DebugLogPath", _debugLogPath));
+        }
+
+        [ChatCommand("ac-why")]
+        void CmdAcWhy(BasePlayer player, string command, string[] args)
+        {
+            if (!player.IsAdmin)
+            {
+                SendReply(player, Msg(player, "NoPermission"));
+                return;
+            }
+
+            string weaponArg = args.Length > 0 ? args[0] : "active";
+            string weaponName = ResolveWeaponNameFromArgument(player, weaponArg);
+            if (string.IsNullOrWhiteSpace(weaponName))
+            {
+                SendReply(player, Msg(player, "WhyUsage"));
+                return;
+            }
+
+            Dictionary<string, WeaponData> byWeapon;
+            if (!_playerStats.TryGetValue(player.userID, out byWeapon))
+            {
+                SendReply(player, Msg(player, "NoData"));
+                return;
+            }
+
+            WeaponData weaponData;
+            if (!byWeapon.TryGetValue(weaponName, out weaponData))
+            {
+                SendReply(player, Msg(player, "WhyNoWeaponData", weaponName));
+                return;
+            }
+
+            var eval = EvaluateWeapon(weaponName, weaponData);
+            float globalNerf = GetLowestNerf(player.userID);
+            SendReply(player, Msg(player, "WhySummary", weaponName, eval.Accuracy, eval.SampleCount, eval.MaxAccuracy, eval.WeightedScore, eval.SuggestedNerf, globalNerf));
+
+            if (!eval.HasEnoughData)
+            {
+                SendReply(player, Msg(player, "WhyReasonNoData"));
+                return;
+            }
+
+            if (!eval.IsSuspicious)
+            {
+                SendReply(player, Msg(player, "WhyReasonBelowThreshold"));
+                return;
+            }
+
+            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
+            if (weaponsCfg == null || !weaponsCfg.ContainsKey(weaponName))
+            {
+                SendReply(player, Msg(player, "WhyNoConfig", weaponName));
+            }
+        }
+
+        [ChatCommand("ac-help")]
+        void CmdAcHelp(BasePlayer player, string command, string[] args)
+        {
+            if (!player.IsAdmin)
+            {
+                SendReply(player, Msg(player, "NoPermission"));
+                return;
+            }
+
+            string report = $"<color=#55ff55>{Msg(player, "HelpHeader")}</color>\n";
+            report += Msg(player, "HelpCheck") + "\n";
+            report += Msg(player, "HelpList") + "\n";
+            report += Msg(player, "HelpReset") + "\n";
+            report += Msg(player, "HelpLang") + "\n";
+            report += Msg(player, "HelpDebug") + "\n";
+            report += Msg(player, "HelpWeapon") + "\n";
+            report += Msg(player, "HelpDebugLog") + "\n";
+            report += Msg(player, "HelpWhy") + "\n";
+            report += Msg(player, "HelpHelp");
+            SendReply(player, report);
+        }
     }
 }
+
+
 
 

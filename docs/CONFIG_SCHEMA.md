@@ -36,6 +36,12 @@ This document defines config keys, types, defaults, and constraints.
 - Meaning: Default message language (implemented).
 - Constraint: should match an available language code (`en`, `hu`, ...).
 
+## `DebugMode`
+
+- Type: `bool`
+- Default: `false`
+- Meaning: Enables additional debug logging in server console for suspicion transitions, penalties, and runtime config changes.
+
 ## `PublicApi`
 
 - Type: `object`

@@ -1,7 +1,7 @@
 ﻿# MogyAntiCheat for Rust (Oxide/uMod)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.7.0-blue)
+![Version](https://img.shields.io/badge/version-1.8.0-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
 ## Project Documentation
@@ -31,7 +31,7 @@ The plugin does not scan files or processes. It observes combat events and compu
 - Time-aware shot/hit correlation using shot expiry windows.
 - Per-weapon tuning through config (`MaxAccuracy`, `SampleCount`, `SafeDistance`).
 - Persistent stats across restarts (`oxide/data/MogyAntiCheat_Stats.json`).
-- Ignores buildings and NPC targets.
+- Ignores buildings; NPC targets are included when `DebugMode` is enabled.
 - Admin players are exempt from damage nerfing.
 - In-game admin chat commands for checks and resets.
 - Public extension API for external plugins (M3 baseline).
@@ -49,6 +49,7 @@ Default config contains per-weapon entries under `Weapons` and global settings:
 
 - `MissExpirySeconds`: How long a fired shot can stay in pending state before it is considered stale.
 - `DefaultLanguage`: Default language for messages without player-specific language (`en` by default).
+- `DebugMode`: Enables extra debug logs (`false` by default).
 - `PublicApi`: Extension API controls (`Enabled`, `ApiVersion`, event toggles).
 
 Each weapon entry supports:
@@ -79,6 +80,11 @@ To customize text:
 - `/ac-list` - List online players with average accuracy and current damage multiplier.
 - `/ac-reset [playerName]` - Clear a player's tracked stats.
 - `/ac-lang <languageCode>` - Set plugin default language (e.g., `en`, `hu`).
+- `/ac-debug <on|off>` - Toggle debug mode runtime (when enabled, admin nerf is also applied and non-building combat entities, including NPC/debug targets, are included in analysis).
+- `/ac-weapon <weaponShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <value>` - Update weapon thresholds in-game and save config.
+- `/ac-debug-log [clear]` - Show/clear debug log file path.
+- `/ac-why [weaponShortName|active]` - Explain why nerf is or is not applied for a weapon.
+- `/ac-help` - Show available admin command list.
 
 ## Public Extension API
 

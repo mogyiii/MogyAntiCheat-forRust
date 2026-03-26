@@ -1,6 +1,6 @@
 ﻿# MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.7.0).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.8.0).
 
 ## Purpose
 
@@ -15,7 +15,7 @@ MogyAntiCheat is a mitigation-first anti-cheat layer for Rust (Oxide/uMod):
 In scope:
 
 - Per-player, per-weapon shot history tracking.
-- Pending shot correlation with confirmed PvP hits.
+- Pending shot correlation with confirmed PvP/NPC hits.
 - Accuracy and long-range weighted suspicion scoring.
 - Real-time outgoing damage scaling.
 - Data persistence and admin commands.
@@ -58,7 +58,8 @@ Persistence:
 
 - Ignore invalid events.
 - Ignore `BuildingBlock`.
-- Continue only for real player targets (`BasePlayer`, non-NPC, valid Steam ID).
+- Continue for real player targets (`BasePlayer`, non-NPC, valid Steam ID).
+- In `DebugMode`, include all `BaseCombatEntity` targets (except buildings), including NPC/debug-spawned entities, for hit analysis.
 - Continue only for real player attackers (non-NPC, valid Steam ID).
 - Debounce repeated hit events within 0.05 seconds.
 - Resolve active weapon and hit distance.
@@ -113,7 +114,8 @@ For each weapon with enough data (`History.Count >= 10`):
 
 Admin exemption:
 
-- Nerf is not applied when attacker is admin.
+- Nerf is not applied when attacker is admin in normal mode.
+- In `DebugMode`, nerf is applied to admin attackers too.
 
 ## Public API Contract
 
@@ -143,6 +145,7 @@ Top-level keys:
 - `Weapons` (dictionary by weapon short name)
 - `MissExpirySeconds` (float)
 - `DefaultLanguage` (string, default `en`)
+- `DebugMode` (bool, default `false`)
 - `PublicApi` (object)
 
 Each weapon requires:
@@ -168,6 +171,13 @@ If a weapon has no entry, history limit falls back to `40` during hit registrati
 - `/ac-lang <code>`
   - Admin-only.
   - Sets and persists `DefaultLanguage` in plugin config.
+- `/ac-debug <on|off>`
+  - Admin-only.
+  - Runtime toggle for `DebugMode` with config persistence.
+  - In debug mode, admin nerf is enabled and NPC targets are included.
+- `/ac-weapon <weapon|active> <MaxAccuracy|SampleCount|SafeDistance> <value>`
+  - Admin-only.
+  - Updates `Weapons` thresholds in-game and persists config.
 
 ## Known Constraints
 
@@ -188,3 +198,4 @@ When plugin behavior changes, update all of:
 1. `MogyAntiCheat.cs` version string.
 2. `README.en.md`.
 3. This file (`docs/SOURCE_OF_TRUTH.md`).
+
