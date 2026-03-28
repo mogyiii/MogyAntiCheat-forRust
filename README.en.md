@@ -1,7 +1,9 @@
 ﻿# MogyAntiCheat for Rust (Oxide/uMod)
 
+[Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
+
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.8.0-blue)
+![Version](https://img.shields.io/badge/version-1.9.0-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
 ## Project Documentation
@@ -34,7 +36,9 @@ The plugin does not scan files or processes. It observes combat events and compu
 - Ignores buildings; NPC targets are included when `DebugMode` is enabled.
 - Admin players are exempt from damage nerfing.
 - In-game admin chat commands for checks and resets.
-- Public extension API for external plugins (M3 baseline).
+- Public extension API for external plugins.
+- Optional webhook/HTTP delivery with queueing, retry/backoff, and rate limiting.
+- Automatic Discord webhook compatibility (`username` + `content` payload).
 
 ## Installation
 
@@ -48,9 +52,10 @@ The plugin does not scan files or processes. It observes combat events and compu
 Default config contains per-weapon entries under `Weapons` and global settings:
 
 - `MissExpirySeconds`: How long a fired shot can stay in pending state before it is considered stale.
-- `DefaultLanguage`: Default language for messages without player-specific language (`en` by default).
+- `DefaultLanguage`: Default language for plugin messages (`en` by default).
 - `DebugMode`: Enables extra debug logs (`false` by default).
 - `PublicApi`: Extension API controls (`Enabled`, `ApiVersion`, event toggles).
+- `Webhook`: Optional outbound event delivery settings.
 
 Each weapon entry supports:
 
@@ -58,9 +63,28 @@ Each weapon entry supports:
 - `SampleCount`: Rolling history size for that weapon.
 - `SafeDistance`: Distance baseline for long-range weighting.
 
-## Language Customization
+Webhook key fields:
 
-The plugin ships with language keys and supports custom language files.
+- `Enabled`: Enable/disable webhook sending (`false` by default).
+- `Endpoint`: Target webhook URL.
+- `AuthToken`, `AuthHeader`: Optional auth header settings.
+- `MaxRetries`, `BaseBackoffSeconds`, `MaxBackoffSeconds`: Retry/backoff behavior.
+- `RateLimitPerSecond`: Max sends per second.
+- `QueueMaxSize`: In-memory queue size cap.
+- `EmitSuspicionEvents`, `EmitPenaltyEvents`: Per-event toggles.
+
+## Discord Webhook Quick Start
+
+1. Set `Webhook.Enabled = true`
+2. Set `Webhook.Endpoint = https://discord.com/api/webhooks/...`
+3. Optional: `/ac-debug on` for easier troubleshooting
+4. Reload plugin
+
+Notes:
+- For Discord endpoints, the plugin automatically sends Discord-compatible payloads (`username` + `content`).
+- Webhook delivery is independent from `PublicApi.Enabled`.
+
+## Language Customization
 
 Default files:
 
@@ -85,28 +109,6 @@ To customize text:
 - `/ac-debug-log [clear]` - Show/clear debug log file path.
 - `/ac-why [weaponShortName|active]` - Explain why nerf is or is not applied for a weapon.
 - `/ac-help` - Show available admin command list.
-
-## Public Extension API
-
-- Hooks: `OnMogyAcSuspicion`, `OnMogyAcPenaltyApplied`
-- Query methods: `GetApiVersion()`, `GetPlayerAcState(ulong playerId)`
-- Payload and compatibility contract: `docs/PUBLIC_API.md`
-
-## How Nerfing Works
-
-Nerf is computed per weapon and the plugin applies the lowest (most restrictive) multiplier across tracked weapons.
-
-- No nerf if too little data exists (`History.Count < 10`).
-- If accuracy is above `MaxAccuracy`, penalty scales with:
-  - how far above the threshold the player is,
-  - and weighted long-range performance.
-- Severe outliers can be set to `0` damage.
-
-## Notes and Limits
-
-- This is mitigation-focused, not a full anti-cheat replacement.
-- Works best when weapon thresholds are tuned to your server's PvP style.
-- If your server has unusual combat mods, recalibrate `MaxAccuracy`, `SampleCount`, and `SafeDistance`.
 
 ## License
 

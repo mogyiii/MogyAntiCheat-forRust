@@ -1,98 +1,118 @@
 ﻿# MogyAntiCheat for Rust (Oxide/uMod)
 
-[English docs](README.en.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
+[Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.8.0-blue)
+![Version](https://img.shields.io/badge/version-1.9.0-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
-## Projekt dokumentáció
+## Project Documentation
 
 - Source of truth: `docs/SOURCE_OF_TRUTH.md`
 - Roadmap: `docs/ROADMAP.md`
 - Public API: `docs/PUBLIC_API.md`
-- Config séma: `docs/CONFIG_SCHEMA.md`
-- RFC sablon: `docs/RFCs/TEMPLATE.md`
-- Változásnapló: `CHANGELOG.md`
+- Config schema: `docs/CONFIG_SCHEMA.md`
+- RFC template: `docs/RFCs/TEMPLATE.md`
+- Change log: `CHANGELOG.md`
 
-A MogyAntiCheat egy statisztikai alapú anti-cheat plugin Rust (Oxide/uMod) szerverekhez.
-A hagyományos azonnali tiltás helyett dinamikusan csökkenti a gyanús játékosok kimenő sebzését, így kisebb a false positive találatokból adódó kár.
+MogyAntiCheat is a statistical anti-cheat plugin for Rust servers running Oxide/uMod.
+Instead of instantly banning players, it dynamically reduces outgoing damage for suspicious combat behavior. This lowers the impact of false positives while still protecting fair gameplay.
 
-## Működési elv
+## Core Idea
 
-A plugin nem fájlokat vagy folyamatokat vizsgál, hanem harci eseményekből dolgozik.
+The plugin does not scan files or processes. It observes combat events and computes per-weapon accuracy trends.
 
-1. Minden lövés egy ideiglenes várólistára kerül.
-2. A valós játékos-játékos találatok vissza vannak párosítva a friss lövésekhez.
-3. Fegyverenként gördülő pontossági statisztika készül.
-4. A távoli találatok nagyobb súlyt kapnak, mint a közeliek.
-5. Küszöbátlépés esetén a kimenő sebzés fokozatosan csökkenhet akár 0-ig.
+1. Every shot is tracked as a pending attempt.
+2. Valid player-vs-player hits are matched back to recent pending shots.
+3. Per-weapon accuracy is calculated from a rolling history.
+4. Long-range hits are weighted more heavily than short-range hits.
+5. If thresholds are exceeded, outgoing damage is reduced (down to 0 in extreme cases).
 
-## Főbb jellemzők
+## Key Features
 
-- Időablakos lövés-találat párosítás.
-- Fegyverenként külön finomhangolható küszöbök.
-- Tartós adattárolás újraindítás után is (`oxide/data/MogyAntiCheat_Stats.json`).
-- Épületek kizárása; NPC találatok debug módban bevonhatók az elemzésbe.
-- Admin mentesség a sebzéscsökkentés alól.
-- In-game admin parancsok ellenőrzéshez, resethez és finomhangoláshoz.
+- Time-aware shot/hit correlation using shot expiry windows.
+- Per-weapon tuning through config (`MaxAccuracy`, `SampleCount`, `SafeDistance`).
+- Persistent stats across restarts (`oxide/data/MogyAntiCheat_Stats.json`).
+- Ignores buildings; NPC targets are included when `DebugMode` is enabled.
+- Admin players are exempt from damage nerfing.
+- In-game admin chat commands for checks and resets.
+- Public extension API for external plugins.
+- Optional webhook/HTTP delivery with queueing, retry/backoff, and rate limiting.
+- Automatic Discord webhook compatibility (`username` + `content` payload).
 
-## Telepítés
+## Installation
 
-1. Telepítsd az Oxide/uMod rendszert a Rust szerveredre.
-2. Másold a `MogyAntiCheat.cs` fájlt a `server/<identity>/oxide/plugins/` mappába.
-3. Töltsd újra a plugint vagy indítsd újra a szervert.
-4. Állítsd be a küszöböket a `server/<identity>/oxide/config/MogyAntiCheat.json` fájlban.
+1. Install Oxide/uMod on your Rust server.
+2. Copy `MogyAntiCheat.cs` into `server/<identity>/oxide/plugins/`.
+3. Reload the plugin or restart the server.
+4. Configure thresholds in `server/<identity>/oxide/config/MogyAntiCheat.json`.
 
-## Konfiguráció
+## Configuration
 
-A konfigurációban fegyverenkénti bejegyzések vannak a `Weapons` alatt, plusz globális beállítások:
+Default config contains per-weapon entries under `Weapons` and global settings:
 
-- `MissExpirySeconds`: mennyi ideig számít érvényesnek egy leadott lövés a találat párosításához.
-- `DefaultLanguage`: alapértelmezett plugin nyelv (`en` alap).
-- `DebugMode`: debug logok be/ki (`false` alap).
-- `PublicApi`: bővítmény API beállítások.
+- `MissExpirySeconds`: How long a fired shot can stay in pending state before it is considered stale.
+- `DefaultLanguage`: Default language for plugin messages (`en` by default).
+- `DebugMode`: Enables extra debug logs (`false` by default).
+- `PublicApi`: Extension API controls (`Enabled`, `ApiVersion`, event toggles).
+- `Webhook`: Optional outbound event delivery settings.
 
-Fegyverenkénti paraméterek:
+Each weapon entry supports:
 
-- `MaxAccuracy`: maximálisan megengedett találati arány (pl. `0.38 = 38%`).
-- `SampleCount`: gördülő mintaméret (hány lövést tartson meg a statisztikához).
-- `SafeDistance`: távolsági referencia a súlyozáshoz.
+- `MaxAccuracy`: Maximum allowed hit ratio (0.38 = 38%).
+- `SampleCount`: Rolling history size for that weapon.
+- `SafeDistance`: Distance baseline for long-range weighting.
 
-## Nyelvi testreszabás
+Webhook key fields:
 
-Alap fájlok:
+- `Enabled`: Enable/disable webhook sending (`false` by default).
+- `Endpoint`: Target webhook URL.
+- `AuthToken`, `AuthHeader`: Optional auth header settings.
+- `MaxRetries`, `BaseBackoffSeconds`, `MaxBackoffSeconds`: Retry/backoff behavior.
+- `RateLimitPerSecond`: Max sends per second.
+- `QueueMaxSize`: In-memory queue size cap.
+- `EmitSuspicionEvents`, `EmitPenaltyEvents`: Per-event toggles.
+
+## Discord Webhook Quick Start
+
+1. Set `Webhook.Enabled = true`
+2. Set `Webhook.Endpoint = https://discord.com/api/webhooks/...`
+3. Optional: `/ac-debug on` for easier troubleshooting
+4. Reload plugin
+
+Notes:
+- For Discord endpoints, the plugin automatically sends Discord-compatible payloads (`username` + `content`).
+- Webhook delivery is independent from `PublicApi.Enabled`.
+
+## Language Customization
+
+Default files:
 
 - `oxide/lang/en/MogyAntiCheat.json`
 - `oxide/lang/hu/MogyAntiCheat.json`
 
-Lépések:
+To customize text:
 
-1. Szerkeszd a kívánt nyelvi JSON fájlt.
-2. Állítsd a `DefaultLanguage` értéket a configban, vagy használd in-game: `/ac-lang <nyelvkód>`.
-3. Ellenőrizd pl. `/ac-check` paranccsal.
+1. Edit your language JSON file.
+2. Set `DefaultLanguage` in `MogyAntiCheat.json` config.
+3. Reload plugin and verify `/ac-check` output.
+4. Optional: use `/ac-lang <languageCode>` as admin for runtime default language switch.
 
-## Parancsok (csak admin)
+## Commands (Admin Only)
 
-- `/ac-check [jatekosnev]` - Részletes statisztika egy játékosról.
-- `/ac-list` - Online játékosok listázása átlag pontossággal és aktuális sebzés-szorzóval.
-- `/ac-reset [jatekosnev]` - Játékos statisztikáinak törlése.
-- `/ac-lang <nyelvkod>` - Alapértelmezett plugin nyelv váltása (pl. `en`, `hu`).
-- `/ac-debug <on|off>` - Debug mód ki/bekapcsolása (bekapcsolva adminra is mehet nerf, és minden nem épület combat entity találatai beleszámítanak).
-- `/ac-weapon <fegyverShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <ertek>` - Fegyverértékek módosítása in-game (és mentése configba).
-- `/ac-debug-log [clear]` - Debug log fájl útvonala vagy törlése.
-- `/ac-why [weaponShortName|active]` - Megmutatja, miért (nem) aktiválódik nerf az adott fegyvernél.
-- `/ac-help` - Elérhető admin parancsok listázása.
+- `/ac-check [playerName]` - Show detailed anti-cheat stats for one player.
+- `/ac-list` - List online players with average accuracy and current damage multiplier.
+- `/ac-reset [playerName]` - Clear a player's tracked stats.
+- `/ac-lang <languageCode>` - Set plugin default language (e.g., `en`, `hu`).
+- `/ac-debug <on|off>` - Toggle debug mode runtime (when enabled, admin nerf is also applied and non-building combat entities, including NPC/debug targets, are included in analysis).
+- `/ac-weapon <weaponShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <value>` - Update weapon thresholds in-game and save config.
+- `/ac-debug-log [clear]` - Show/clear debug log file path.
+- `/ac-why [weaponShortName|active]` - Explain why nerf is or is not applied for a weapon.
+- `/ac-help` - Show available admin command list.
 
-Példák:
-
-- `/ac-weapon rifle.ak MaxAccuracy 0.36`
-- `/ac-weapon active SafeDistance 30`
-- `/ac-debug on`
-
-## Licenc
+## License
 
 MIT License.
 
 ---
-Készítette: **Mogy**
+Created by **Mogy**
