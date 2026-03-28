@@ -58,7 +58,7 @@ RFC:
 
 ## M4 - Opcionális külső webhook/HTTP integráció
 
-Státusz: `Planned`
+Státusz: `Done`
 Célidő: 2026 Q3-Q4
 
 Cél:
@@ -68,9 +68,13 @@ Szállítandók:
 - Opcionális webhook config (endpoint, auth token, retry policy).
 - Rate limiting és backoff viselkedés.
 - Fail-safe mód (ha webhook hibázik, az anti-cheat mag működik tovább).
+- Discord webhook kompatibilis payload (`content`) automatikus használata Discord endpoint esetén.
 
 Elfogadási feltételek:
 - Magas jelértékű események játékmenet-romlás nélkül kiküldhetők.
+
+RFC:
+- `docs/RFCs/RFC-0003-webhook-http-integration.md`
 
 ## Megjegyzés
 

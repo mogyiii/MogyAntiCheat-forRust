@@ -95,3 +95,10 @@ Under `PublicApi`:
 - External plugins should check method existence and null responses.
 - New fields may be added without notice in minor versions.
 - Field removals/renames require major bump.
+
+## Webhook Integration Note
+
+- Webhook HTTP delivery is configured under Webhook and is separate from this Public API contract.
+- PublicApi.Enabled and related PublicApi.Emit* flags control only in-process hook emission.
+- Webhook event sending for suspicion/penalty remains available when Webhook.Enabled=true, even if public API hooks are disabled.
+

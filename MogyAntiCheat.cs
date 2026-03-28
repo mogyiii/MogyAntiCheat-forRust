@@ -3,24 +3,32 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Newtonsoft.Json;
 using Oxide.Core;
 using Oxide.Core.Configuration;
+using Oxide.Core.Libraries;
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MogyAntiCheat", "Mogy", "1.8.0")]
+    [Info("MogyAntiCheat", "Mogy", "1.9.0")]
     public class MogyAntiCheat : RustPlugin
     {
         private const string DefaultLanguageFallback = "en";
         private const string PublicApiVersionCurrent = "1.0.0";
         private const string DebugLogFileName = "MogyAntiCheat_Debug.log";
+        private const float WebhookRateWindowSeconds = 1f;
 
         private DynamicConfigFile _storedData;
         private string _debugLogPath;
         private readonly Dictionary<ulong, Dictionary<string, WeaponData>> _playerStats = new Dictionary<ulong, Dictionary<string, WeaponData>>();
         private readonly Dictionary<ulong, float> _lastHitTime = new Dictionary<ulong, float>();
         private readonly Dictionary<ulong, HashSet<string>> _activeSuspicionByWeapon = new Dictionary<ulong, HashSet<string>>();
+        private readonly Queue<WebhookEnvelope> _webhookQueue = new Queue<WebhookEnvelope>();
+        private Timer _webhookPumpTimer;
+        private bool _webhookRequestInFlight;
+        private float _webhookWindowStart;
+        private int _webhookSentInWindow;
 
         private static readonly Dictionary<string, string> MessagesEn = new Dictionary<string, string>
         {
@@ -125,13 +133,13 @@ namespace Oxide.Plugins
 
             public void AddMiss(float distance)
             {
-                PendingMisses.Add(new KeyValuePair<float, float>(Time.realtimeSinceStartup, distance));
+                PendingMisses.Add(new KeyValuePair<float, float>(UnityEngine.Time.realtimeSinceStartup, distance));
                 if (PendingMisses.Count > 100) PendingMisses.RemoveAt(0);
             }
 
             public void RegisterHit(float distance, int limit, float expiryTime)
             {
-                float now = Time.realtimeSinceStartup;
+                float now = UnityEngine.Time.realtimeSinceStartup;
                 int lastIndex = -1;
 
                 for (int i = PendingMisses.Count - 1; i >= 0; i--)
@@ -191,6 +199,13 @@ namespace Oxide.Plugins
             public int SampleCount;
         }
 
+        private class WebhookEnvelope
+        {
+            public string EventName;
+            public Dictionary<string, object> Payload;
+            public int Attempt;
+        }
+
         void Init()
         {
             lang.RegisterMessages(MessagesEn, this, "en");
@@ -200,10 +215,16 @@ namespace Oxide.Plugins
             _debugLogPath = Path.Combine(Interface.Oxide.DataDirectory, DebugLogFileName);
             LoadStats();
             EnsureConfigDefaults();
+            _webhookWindowStart = UnityEngine.Time.realtimeSinceStartup;
+            _webhookPumpTimer = timer.Every(0.25f, PumpWebhookQueue);
         }
 
         void OnServerSave() => SaveStats();
-        void Unload() => SaveStats();
+        void Unload()
+        {
+            _webhookPumpTimer?.Destroy();
+            SaveStats();
+        }
 
         private void SaveStats()
         {
@@ -284,6 +305,20 @@ namespace Oxide.Plugins
                 ["EmitSuspicionEvents"] = true,
                 ["EmitPenaltyEvents"] = true
             };
+            Config["Webhook"] = new Dictionary<string, object>
+            {
+                ["Enabled"] = false,
+                ["Endpoint"] = "",
+                ["AuthToken"] = "",
+                ["AuthHeader"] = "Authorization",
+                ["MaxRetries"] = 3,
+                ["BaseBackoffSeconds"] = 1.5,
+                ["MaxBackoffSeconds"] = 20.0,
+                ["RateLimitPerSecond"] = 2,
+                ["QueueMaxSize"] = 500,
+                ["EmitSuspicionEvents"] = true,
+                ["EmitPenaltyEvents"] = true
+            };
             SaveConfig();
         }
 
@@ -340,6 +375,11 @@ namespace Oxide.Plugins
                     publicApi["EmitPenaltyEvents"] = true;
                     changed = true;
                 }
+            }
+
+            if (EnsureWebhookConfigDefaults())
+            {
+                changed = true;
             }
 
             if (changed) SaveConfig();
@@ -500,6 +540,450 @@ namespace Oxide.Plugins
             return string.IsNullOrWhiteSpace(value) ? PublicApiVersionCurrent : value;
         }
 
+        private bool EnsureWebhookConfigDefaults()
+        {
+            bool changed = false;
+            var webhook = Config["Webhook"] as Dictionary<string, object>;
+            if (webhook == null)
+            {
+                webhook = new Dictionary<string, object>();
+                Config["Webhook"] = webhook;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("Enabled"))
+            {
+                webhook["Enabled"] = false;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("Endpoint"))
+            {
+                webhook["Endpoint"] = string.Empty;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("AuthToken"))
+            {
+                webhook["AuthToken"] = string.Empty;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("AuthHeader"))
+            {
+                webhook["AuthHeader"] = "Authorization";
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("MaxRetries"))
+            {
+                webhook["MaxRetries"] = 3;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("BaseBackoffSeconds"))
+            {
+                webhook["BaseBackoffSeconds"] = 1.5;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("MaxBackoffSeconds"))
+            {
+                webhook["MaxBackoffSeconds"] = 20.0;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("RateLimitPerSecond"))
+            {
+                webhook["RateLimitPerSecond"] = 2;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("QueueMaxSize"))
+            {
+                webhook["QueueMaxSize"] = 500;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("EmitSuspicionEvents"))
+            {
+                webhook["EmitSuspicionEvents"] = true;
+                changed = true;
+            }
+
+            if (!webhook.ContainsKey("EmitPenaltyEvents"))
+            {
+                webhook["EmitPenaltyEvents"] = true;
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        private Dictionary<string, object> GetWebhookConfig()
+        {
+            if (EnsureWebhookConfigDefaults()) SaveConfig();
+            return Config["Webhook"] as Dictionary<string, object>;
+        }
+
+        private bool IsWebhookEnabled()
+        {
+            var cfg = GetWebhookConfig();
+            try
+            {
+                return cfg != null && cfg.ContainsKey("Enabled") && Convert.ToBoolean(cfg["Enabled"]);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool ShouldEmitWebhookSuspicionEvents()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("EmitSuspicionEvents")) return true;
+
+            try
+            {
+                return Convert.ToBoolean(cfg["EmitSuspicionEvents"]);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        private bool ShouldEmitWebhookPenaltyEvents()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("EmitPenaltyEvents")) return true;
+
+            try
+            {
+                return Convert.ToBoolean(cfg["EmitPenaltyEvents"]);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        private string GetWebhookEndpoint()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("Endpoint") || cfg["Endpoint"] == null) return string.Empty;
+            return cfg["Endpoint"].ToString().Trim();
+        }
+
+        private string GetWebhookAuthToken()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("AuthToken") || cfg["AuthToken"] == null) return string.Empty;
+            return cfg["AuthToken"].ToString().Trim();
+        }
+
+        private string GetWebhookAuthHeader()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("AuthHeader") || cfg["AuthHeader"] == null) return "Authorization";
+            var header = cfg["AuthHeader"].ToString().Trim();
+            return string.IsNullOrWhiteSpace(header) ? "Authorization" : header;
+        }
+
+        private int GetWebhookMaxRetries()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("MaxRetries")) return 3;
+
+            try
+            {
+                return Mathf.Clamp(Convert.ToInt32(cfg["MaxRetries"]), 0, 10);
+            }
+            catch
+            {
+                return 3;
+            }
+        }
+
+        private float GetWebhookBaseBackoffSeconds()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("BaseBackoffSeconds")) return 1.5f;
+
+            try
+            {
+                return Mathf.Clamp(Convert.ToSingle(cfg["BaseBackoffSeconds"]), 0.25f, 60f);
+            }
+            catch
+            {
+                return 1.5f;
+            }
+        }
+
+        private float GetWebhookMaxBackoffSeconds()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("MaxBackoffSeconds")) return 20f;
+
+            try
+            {
+                return Mathf.Clamp(Convert.ToSingle(cfg["MaxBackoffSeconds"]), 1f, 300f);
+            }
+            catch
+            {
+                return 20f;
+            }
+        }
+
+        private int GetWebhookRateLimitPerSecond()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("RateLimitPerSecond")) return 2;
+
+            try
+            {
+                return Mathf.Clamp(Convert.ToInt32(cfg["RateLimitPerSecond"]), 1, 100);
+            }
+            catch
+            {
+                return 2;
+            }
+        }
+
+        private int GetWebhookQueueMaxSize()
+        {
+            var cfg = GetWebhookConfig();
+            if (cfg == null || !cfg.ContainsKey("QueueMaxSize")) return 500;
+
+            try
+            {
+                return Mathf.Clamp(Convert.ToInt32(cfg["QueueMaxSize"]), 10, 5000);
+            }
+            catch
+            {
+                return 500;
+            }
+        }
+
+        private bool CanSendWebhookNow(out float delaySeconds)
+        {
+            delaySeconds = 0f;
+            float now = UnityEngine.Time.realtimeSinceStartup;
+            if (now - _webhookWindowStart >= WebhookRateWindowSeconds)
+            {
+                _webhookWindowStart = now;
+                _webhookSentInWindow = 0;
+            }
+
+            if (_webhookSentInWindow < GetWebhookRateLimitPerSecond()) return true;
+
+            delaySeconds = WebhookRateWindowSeconds - (now - _webhookWindowStart);
+            if (delaySeconds < 0f) delaySeconds = 0f;
+            return false;
+        }
+
+        private void EnqueueWebhookEvent(string eventName, Dictionary<string, object> payload)
+        {
+            if (!IsWebhookEnabled()) return;
+
+            if (eventName == "suspicion" && !ShouldEmitWebhookSuspicionEvents()) return;
+            if (eventName == "penalty_applied" && !ShouldEmitWebhookPenaltyEvents()) return;
+
+            string endpoint = GetWebhookEndpoint();
+            if (string.IsNullOrWhiteSpace(endpoint))
+            {
+                DebugLog($"Webhook skipped: missing endpoint for event '{eventName}'.");
+                return;
+            }
+
+            var envelopePayload = new Dictionary<string, object>(payload)
+            {
+                ["eventType"] = eventName
+            };
+
+            _webhookQueue.Enqueue(new WebhookEnvelope
+            {
+                EventName = eventName,
+                Payload = envelopePayload,
+                Attempt = 0
+            });
+
+            int maxSize = GetWebhookQueueMaxSize();
+            while (_webhookQueue.Count > maxSize)
+            {
+                _webhookQueue.Dequeue();
+            }
+
+            PumpWebhookQueue();
+        }
+
+        private void PumpWebhookQueue()
+        {
+            if (_webhookRequestInFlight) return;
+            if (_webhookQueue.Count == 0) return;
+            if (!IsWebhookEnabled()) return;
+
+            float waitDelay;
+            if (!CanSendWebhookNow(out waitDelay))
+            {
+                timer.Once(waitDelay + 0.01f, PumpWebhookQueue);
+                return;
+            }
+
+            var next = _webhookQueue.Dequeue();
+            SendWebhook(next);
+        }
+
+        private void SendWebhook(WebhookEnvelope envelope)
+        {
+            string endpoint = GetWebhookEndpoint();
+            if (string.IsNullOrWhiteSpace(endpoint)) return;
+
+            string payloadJson;
+            try
+            {
+                payloadJson = BuildWebhookRequestJson(envelope, endpoint);
+            }
+            catch (Exception ex)
+            {
+                DebugLog($"Webhook serialization failed for {envelope.EventName}: {ex.Message}");
+                return;
+            }
+
+            var headers = new Dictionary<string, string>
+            {
+                ["Content-Type"] = "application/json"
+            };
+
+            string token = GetWebhookAuthToken();
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                headers[GetWebhookAuthHeader()] = token;
+            }
+
+            _webhookRequestInFlight = true;
+            _webhookSentInWindow++;
+            try
+            {
+                webrequest.Enqueue(endpoint, payloadJson, (code, response) =>
+                {
+                    _webhookRequestInFlight = false;
+                    if (code >= 200 && code < 300)
+                    {
+                        DebugLog($"Webhook sent: event={envelope.EventName}, code={code}, attempt={envelope.Attempt + 1}");
+                        PumpWebhookQueue();
+                        return;
+                    }
+
+                    HandleWebhookFailure(envelope, code, response);
+                    PumpWebhookQueue();
+                }, this, RequestMethod.POST, headers);
+            }
+            catch (Exception ex)
+            {
+                _webhookRequestInFlight = false;
+                DebugLog($"Webhook request enqueue failed for {envelope.EventName}: {ex.Message}");
+                HandleWebhookFailure(envelope, -1, ex.Message);
+            }
+        }
+
+        private void HandleWebhookFailure(WebhookEnvelope envelope, int code, string response)
+        {
+            int maxRetries = GetWebhookMaxRetries();
+            if (envelope.Attempt >= maxRetries)
+            {
+                DebugLog($"Webhook dropped after retries: event={envelope.EventName}, code={code}, response={response}");
+                return;
+            }
+
+            float baseDelay = GetWebhookBaseBackoffSeconds();
+            float maxDelay = Mathf.Max(baseDelay, GetWebhookMaxBackoffSeconds());
+            float delay = Mathf.Min(maxDelay, baseDelay * Mathf.Pow(2f, envelope.Attempt));
+
+            envelope.Attempt++;
+            DebugLog($"Webhook retry scheduled: event={envelope.EventName}, attempt={envelope.Attempt}, delay={delay:F2}s, code={code}");
+
+            timer.Once(delay, () =>
+            {
+                _webhookQueue.Enqueue(envelope);
+                PumpWebhookQueue();
+            });
+        }
+
+        private string BuildWebhookRequestJson(WebhookEnvelope envelope, string endpoint)
+        {
+            if (IsDiscordWebhookEndpoint(endpoint))
+            {
+                return BuildDiscordWebhookJson(envelope);
+            }
+
+            return JsonConvert.SerializeObject(envelope.Payload);
+        }
+
+        private bool IsDiscordWebhookEndpoint(string endpoint)
+        {
+            if (string.IsNullOrWhiteSpace(endpoint)) return false;
+            return endpoint.IndexOf("discord.com/api/webhooks", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private string BuildDiscordWebhookJson(WebhookEnvelope envelope)
+        {
+            string content;
+            if (string.Equals(envelope.EventName, "suspicion", StringComparison.OrdinalIgnoreCase))
+            {
+                content = string.Format(
+                    "[MogyAC] Suspicion | player={0} weapon={1} acc={2:P1} nerf={3:P0} samples={4}",
+                    GetPayloadValue(envelope.Payload, "playerId"),
+                    GetPayloadValue(envelope.Payload, "weaponShortName"),
+                    GetPayloadFloat(envelope.Payload, "accuracy"),
+                    GetPayloadFloat(envelope.Payload, "suggestedNerf"),
+                    GetPayloadValue(envelope.Payload, "sampleCount"));
+            }
+            else if (string.Equals(envelope.EventName, "penalty_applied", StringComparison.OrdinalIgnoreCase))
+            {
+                content = string.Format(
+                    "[MogyAC] Penalty | attacker={0} target={1} weapon={2} mult={3:F2} dmg={4:F1}->{5:F1}",
+                    GetPayloadValue(envelope.Payload, "attackerId"),
+                    GetPayloadValue(envelope.Payload, "targetId"),
+                    GetPayloadValue(envelope.Payload, "weaponShortName"),
+                    GetPayloadFloat(envelope.Payload, "appliedMultiplier"),
+                    GetPayloadFloat(envelope.Payload, "originalDamage"),
+                    GetPayloadFloat(envelope.Payload, "scaledDamage"));
+            }
+            else
+            {
+                content = "[MogyAC] Event: " + envelope.EventName;
+            }
+
+            var discordPayload = new Dictionary<string, object>
+            {
+                ["username"] = "MogyAntiCheat",
+                ["content"] = content
+            };
+
+            return JsonConvert.SerializeObject(discordPayload);
+        }
+
+        private object GetPayloadValue(Dictionary<string, object> payload, string key)
+        {
+            if (payload == null || !payload.ContainsKey(key) || payload[key] == null) return "n/a";
+            return payload[key];
+        }
+
+        private float GetPayloadFloat(Dictionary<string, object> payload, string key)
+        {
+            if (payload == null || !payload.ContainsKey(key) || payload[key] == null) return 0f;
+            try
+            {
+                return Convert.ToSingle(payload[key]);
+            }
+            catch
+            {
+                return 0f;
+            }
+        }
+
         private string GetMessageFromPack(Dictionary<string, string> pack, string key)
         {
             string value;
@@ -578,9 +1062,9 @@ namespace Oxide.Plugins
             float lastHit;
             if (_lastHitTime.TryGetValue(attacker.userID, out lastHit))
             {
-                if (Time.realtimeSinceStartup - lastHit < 0.05f) return;
+                if (UnityEngine.Time.realtimeSinceStartup - lastHit < 0.05f) return;
             }
-            _lastHitTime[attacker.userID] = Time.realtimeSinceStartup;
+            _lastHitTime[attacker.userID] = UnityEngine.Time.realtimeSinceStartup;
 
             var weapon = attacker.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
             if (weapon == null) return;
@@ -693,7 +1177,7 @@ namespace Oxide.Plugins
 
         private void ProcessSuspicionTransition(BasePlayer attacker, string weaponName, WeaponEvaluation evaluation)
         {
-            if (attacker == null || !IsPublicApiEnabled() || !ShouldEmitSuspicionEvents()) return;
+            if (attacker == null) return;
 
             HashSet<string> suspiciousWeapons;
             if (!_activeSuspicionByWeapon.TryGetValue(attacker.userID, out suspiciousWeapons))
@@ -730,12 +1214,16 @@ namespace Oxide.Plugins
                 ["timestampUtc"] = DateTime.UtcNow.ToString("o")
             };
 
-            Interface.CallHook("OnMogyAcSuspicion", payload);
+            if (IsPublicApiEnabled() && ShouldEmitSuspicionEvents())
+            {
+                Interface.CallHook("OnMogyAcSuspicion", payload);
+            }
+            EnqueueWebhookEvent("suspicion", payload);
         }
 
         private void EmitPenaltyEvent(BasePlayer attacker, BasePlayer target, string weaponName, float appliedMultiplier, float originalDamage, float scaledDamage)
         {
-            if (attacker == null || !IsPublicApiEnabled() || !ShouldEmitPenaltyEvents()) return;
+            if (attacker == null) return;
 
             var payload = new Dictionary<string, object>
             {
@@ -750,7 +1238,11 @@ namespace Oxide.Plugins
             };
 
             DebugLog($"Penalty applied: attacker={attacker.displayName} ({attacker.userID}), target={(target != null ? target.displayName : "n/a")}, weapon={weaponName}, multiplier={appliedMultiplier:F2}, damage={originalDamage:F1}->{scaledDamage:F1}");
-            Interface.CallHook("OnMogyAcPenaltyApplied", payload);
+            if (IsPublicApiEnabled() && ShouldEmitPenaltyEvents())
+            {
+                Interface.CallHook("OnMogyAcPenaltyApplied", payload);
+            }
+            EnqueueWebhookEvent("penalty_applied", payload);
         }
 
         private string ResolveWeaponNameFromArgument(BasePlayer player, string weaponArg)
@@ -1225,6 +1717,7 @@ namespace Oxide.Plugins
         }
     }
 }
+
 
 
 

@@ -58,7 +58,7 @@ RFC:
 
 ## M4 - Optional External Webhook/HTTP Integration
 
-Status: `Planned`
+Status: `Done`
 Target: Q3-Q4 2026
 
 Goal:
@@ -72,7 +72,15 @@ Deliverables:
 Acceptance Criteria:
 - High-signal events can be sent externally without gameplay impact.
 
+RFC:
+- `docs/RFCs/RFC-0003-webhook-http-integration.md`
+
 ## Notes
 
 - Each milestone should be detailed in its own RFC under `docs/RFCs/`.
 - Implementation is done only after RFC acceptance.
+
+
+
+
+

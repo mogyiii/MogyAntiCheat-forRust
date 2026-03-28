@@ -1,6 +1,6 @@
 ﻿# MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.8.0).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.0).
 
 ## Purpose
 
@@ -20,6 +20,7 @@ In scope:
 - Real-time outgoing damage scaling.
 - Data persistence and admin commands.
 - Public extension API (read-only query + event notifications).
+- Optional outbound webhook/HTTP pipeline with queue, rate limiting, retry, and backoff.
 
 Out of scope:
 
@@ -36,8 +37,10 @@ Out of scope:
   - `WeaponData.PendingMisses`: pending shot timestamps + distances.
 - `_lastHitTime: Dictionary<ulong, float>`
   - Debounce map to avoid duplicate rapid hit processing.
-- `_activeSuspicionByWeapon: Dictionary<ulong, HashSet<string>>`
+- `_activeSuspicionByWeapon: Dictionary<ulong, HashSet<string>>` 
   - Tracks currently suspicious weapons per player for transition-based event emission.
+- `_webhookQueue: Queue<WebhookEnvelope>` + runtime send state
+  - In-memory bounded queue for outbound webhook events (`suspicion`, `penalty_applied`).
 
 Persistence:
 
@@ -65,7 +68,7 @@ Persistence:
 - Resolve active weapon and hit distance.
 - Load per-weapon `SampleCount` and global `MissExpirySeconds`.
 - Register hit into rolling history (`RegisterHit`).
-- Evaluate suspicion for active weapon and emit transition hook (if enabled).
+- Evaluate suspicion for active weapon and emit transition event payload.
 - Compute attacker nerf (`GetLowestNerf`) and scale outgoing damage if needed.
 - Emit penalty-applied hook after scaling (if enabled).
 
@@ -147,6 +150,7 @@ Top-level keys:
 - `DefaultLanguage` (string, default `en`)
 - `DebugMode` (bool, default `false`)
 - `PublicApi` (object)
+- `Webhook` (object)
 
 Each weapon requires:
 
@@ -198,4 +202,22 @@ When plugin behavior changes, update all of:
 1. `MogyAntiCheat.cs` version string.
 2. `README.en.md`.
 3. This file (`docs/SOURCE_OF_TRUTH.md`).
+
+
+## Webhook Delivery Contract
+
+Config under Webhook:
+
+- Enabled, Endpoint, optional AuthToken + AuthHeader.
+- RateLimitPerSecond, QueueMaxSize, MaxRetries, BaseBackoffSeconds, MaxBackoffSeconds.
+- EmitSuspicionEvents, EmitPenaltyEvents.
+
+Behavior:
+
+- Suspicion and penalty events are enqueued and sent asynchronously.
+- Rate limiting is enforced per second.
+- Failed sends are retried with exponential backoff, then dropped after max retries.
+- Anti-cheat core flow is fail-safe and does not block gameplay on webhook errors.
+- Discord webhook endpoints receive Discord-compatible request body (username + content).
+
 

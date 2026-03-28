@@ -53,6 +53,25 @@ Fields:
 - `EmitSuspicionEvents` (`bool`, default `true`)
 - `EmitPenaltyEvents` (`bool`, default `true`)
 
+
+## `Webhook`
+
+- Type: `object`
+- Purpose: optional external HTTP push for high-signal anti-cheat events.
+
+Fields:
+- `Enabled` (`bool`, default `false`)
+- `Endpoint` (`string`, default `""`)
+- `AuthToken` (`string`, default `""`)
+- `AuthHeader` (`string`, default `"Authorization"`)
+- `MaxRetries` (`int`, default `3`, range `0..10`)
+- `BaseBackoffSeconds` (`float`, default `1.5`, range `0.25..60`)
+- `MaxBackoffSeconds` (`float`, default `20.0`, range `1..300`)
+- `RateLimitPerSecond` (`int`, default `2`, range `1..100`)
+- `QueueMaxSize` (`int`, default `500`, range `10..5000`)
+- `EmitSuspicionEvents` (`bool`, default `true`)
+- `EmitPenaltyEvents` (`bool`, default `true`)
+
 ## Planned Keys (M2+)
 
 ## `PenaltyTiers`
@@ -71,3 +90,16 @@ Planned tier object fields:
 - Invalid numeric values should be clamped or rejected with clear warning logs.
 - Unknown keys should be ignored but reported in debug logs.
 - On invalid config, plugin should use safe defaults instead of crashing.
+
+
+
+
+
+
+## Webhook Behavior Notes
+
+- Webhook delivery is independent from PublicApi.Enabled.
+- PublicApi toggles only in-process hooks (OnMogyAcSuspicion, OnMogyAcPenaltyApplied).
+- Discord webhook endpoint (discord.com/api/webhooks) automatically receives Discord-compatible payload (username + content).
+- Non-Discord endpoints receive the raw anti-cheat event JSON payload.
+
