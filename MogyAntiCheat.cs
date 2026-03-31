@@ -11,13 +11,16 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MogyAntiCheat", "Mogy", "1.9.0")]
+    [Info("Mogy AntiCheat", "Mogy", "1.9.1")]
+    [Description("Tracks weapon accuracy trends and dynamically reduces suspicious player damage using configurable thresholds and localized admin commands.")]
     public class MogyAntiCheat : RustPlugin
     {
         private const string DefaultLanguageFallback = "en";
         private const string PublicApiVersionCurrent = "1.0.0";
         private const string DebugLogFileName = "MogyAntiCheat_Debug.log";
         private const float WebhookRateWindowSeconds = 1f;
+        private const string PermissionAdmin = "mogyanticheat.admin";
+        private const string PermissionBypass = "mogyanticheat.bypass";
 
         private DynamicConfigFile _storedData;
         private string _debugLogPath;
@@ -63,6 +66,7 @@ namespace Oxide.Plugins
             ["WhyReasonBelowThreshold"] = "Reason: accuracy is within configured threshold.",
             ["DebugLogPath"] = "Debug log file: {0}",
             ["DebugLogCleared"] = "Debug log file cleared.",
+            ["DebugLogClearFailed"] = "[MogyAC] Debug log clear failed: {0}",
             ["HelpHeader"] = "=== MogyAC COMMANDS ===",
             ["HelpCheck"] = "/ac-check [playerName] - Show detailed anti-cheat stats for a player.",
             ["HelpList"] = "/ac-list - List online players with average accuracy and damage multiplier.",
@@ -108,6 +112,7 @@ namespace Oxide.Plugins
             ["WhyReasonBelowThreshold"] = "Ok: a pontosság a beállított küszöbön belül van.",
             ["DebugLogPath"] = "Debug log fájl: {0}",
             ["DebugLogCleared"] = "Debug log fájl törölve.",
+            ["DebugLogClearFailed"] = "[MogyAC] Debug log törlése sikertelen: {0}",
             ["HelpHeader"] = "=== MogyAC PARANCSOK ===",
             ["HelpCheck"] = "/ac-check [jatekosnev] - Részletes anti-cheat stat egy játékosról.",
             ["HelpList"] = "/ac-list - Online játékosok listázása átlag pontossággal és sebzés szorzóval.",
@@ -210,6 +215,8 @@ namespace Oxide.Plugins
         {
             lang.RegisterMessages(MessagesEn, this, "en");
             lang.RegisterMessages(MessagesHu, this, "hu");
+            permission.RegisterPermission(PermissionAdmin, this);
+            permission.RegisterPermission(PermissionBypass, this);
 
             _storedData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_Stats");
             _debugLogPath = Path.Combine(Interface.Oxide.DataDirectory, DebugLogFileName);
@@ -224,6 +231,16 @@ namespace Oxide.Plugins
         {
             _webhookPumpTimer?.Destroy();
             SaveStats();
+        }
+
+        private bool HasAccess(BasePlayer player, string permissionName)
+        {
+            return player != null && (player.IsAdmin || permission.UserHasPermission(player.UserIDString, permissionName));
+        }
+
+        private bool HasBypass(BasePlayer player)
+        {
+            return player != null && (player.IsAdmin || permission.UserHasPermission(player.UserIDString, PermissionBypass));
         }
 
         private void SaveStats()
@@ -1003,7 +1020,16 @@ namespace Oxide.Plugins
 
         private string Msg(BasePlayer player, string key, params object[] args)
         {
-            string message = GetConfiguredFallbackMessage(key);
+            string message = null;
+            if (player != null)
+            {
+                message = lang.GetMessage(key, this, player.UserIDString);
+            }
+
+            if (string.IsNullOrEmpty(message))
+            {
+                message = GetConfiguredFallbackMessage(key);
+            }
 
             if (string.IsNullOrEmpty(message))
             {
@@ -1104,7 +1130,7 @@ namespace Oxide.Plugins
             ProcessSuspicionTransition(attacker, wName, evaluation);
 
             float globalNerf = GetLowestNerf(attacker.userID);
-            bool shouldApplyNerfToAttacker = !attacker.IsAdmin || debugMode;
+            bool shouldApplyNerfToAttacker = !HasBypass(attacker) || debugMode;
             if (debugMode)
             {
                 DebugLog($"Damage check: attacker={attacker.displayName} ({attacker.userID}), target={entity.ShortPrefabName}, weapon={wName}, acc={evaluation.Accuracy:P2}, max={evaluation.MaxAccuracy:P2}, globalNerf={globalNerf:P2}, applyNerf={shouldApplyNerfToAttacker}");
@@ -1401,7 +1427,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-check")]
         void CmdChatCheck(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!HasAccess(player, PermissionAdmin))
             {
                 SendReply(player, Msg(player, "NoPermission"));
                 return;
@@ -1440,7 +1466,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-list")]
         void CmdAcList(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!HasAccess(player, PermissionAdmin))
             {
                 SendReply(player, Msg(player, "NoPermission"));
                 return;
@@ -1476,7 +1502,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-reset")]
         void CmdAcReset(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!HasAccess(player, PermissionAdmin))
             {
                 SendReply(player, Msg(player, "NoPermission"));
                 return;
@@ -1503,7 +1529,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-lang")]
         void CmdAcLang(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!HasAccess(player, PermissionAdmin))
             {
                 SendReply(player, Msg(player, "NoPermission"));
                 return;
@@ -1540,7 +1566,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-debug")]
         void CmdAcDebug(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!HasAccess(player, PermissionAdmin))
             {
                 SendReply(player, Msg(player, "NoPermission"));
                 return;
@@ -1575,7 +1601,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-weapon")]
         void CmdAcWeapon(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!HasAccess(player, PermissionAdmin))
             {
                 SendReply(player, Msg(player, "NoPermission"));
                 return;
@@ -1617,7 +1643,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-debug-log")]
         void CmdAcDebugLog(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!HasAccess(player, PermissionAdmin))
             {
                 SendReply(player, Msg(player, "NoPermission"));
                 return;
@@ -1632,7 +1658,7 @@ namespace Oxide.Plugins
                 }
                 catch (Exception ex)
                 {
-                    SendReply(player, "[MogyAC] Debug log clear failed: " + ex.Message);
+                    SendReply(player, Msg(player, "DebugLogClearFailed", ex.Message));
                 }
                 return;
             }
@@ -1643,7 +1669,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-why")]
         void CmdAcWhy(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!HasAccess(player, PermissionAdmin))
             {
                 SendReply(player, Msg(player, "NoPermission"));
                 return;
@@ -1697,7 +1723,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-help")]
         void CmdAcHelp(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!HasAccess(player, PermissionAdmin))
             {
                 SendReply(player, Msg(player, "NoPermission"));
                 return;

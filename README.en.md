@@ -3,7 +3,7 @@
 [Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9.0-blue)
+![Version](https://img.shields.io/badge/version-1.9.1-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
 ## Project Documentation
@@ -34,7 +34,7 @@ The plugin does not scan files or processes. It observes combat events and compu
 - Per-weapon tuning through config (`MaxAccuracy`, `SampleCount`, `SafeDistance`).
 - Persistent stats across restarts (`oxide/data/MogyAntiCheat_Stats.json`).
 - Ignores buildings; NPC targets are included when `DebugMode` is enabled.
-- Admin players are exempt from damage nerfing.
+- Players with bypass permission are exempt from damage nerfing.
 - In-game admin chat commands for checks and resets.
 - Public extension API for external plugins.
 - Optional webhook/HTTP delivery with queueing, retry/backoff, and rate limiting.
@@ -98,13 +98,18 @@ To customize text:
 3. Reload plugin and verify `/ac-check` output.
 4. Optional: use `/ac-lang <languageCode>` as admin for runtime default language switch.
 
-## Commands (Admin Only)
+## Permissions
+
+- `mogyanticheat.admin`: Access to all chat commands.
+- `mogyanticheat.bypass`: Exempt from damage nerf logic (unless `DebugMode` is enabled).
+
+## Commands
 
 - `/ac-check [playerName]` - Show detailed anti-cheat stats for one player.
 - `/ac-list` - List online players with average accuracy and current damage multiplier.
 - `/ac-reset [playerName]` - Clear a player's tracked stats.
 - `/ac-lang <languageCode>` - Set plugin default language (e.g., `en`, `hu`).
-- `/ac-debug <on|off>` - Toggle debug mode runtime (when enabled, admin nerf is also applied and non-building combat entities, including NPC/debug targets, are included in analysis).
+- `/ac-debug <on|off>` - Toggle debug mode runtime (when enabled, bypass is ignored and non-building combat entities, including NPC/debug targets, are included in analysis).
 - `/ac-weapon <weaponShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <value>` - Update weapon thresholds in-game and save config.
 - `/ac-debug-log [clear]` - Show/clear debug log file path.
 - `/ac-why [weaponShortName|active]` - Explain why nerf is or is not applied for a weapon.

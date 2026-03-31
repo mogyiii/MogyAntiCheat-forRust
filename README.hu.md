@@ -3,7 +3,7 @@
 [English docs](README.en.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9.0-blue)
+![Version](https://img.shields.io/badge/version-1.9.1-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
 ## Projekt dokumentáció
@@ -34,7 +34,7 @@ A plugin nem fájlokat vagy folyamatokat vizsgál, hanem harci eseményekből do
 - Fegyverenként külön finomhangolható küszöbök.
 - Tartós adattárolás újraindítás után is (`oxide/data/MogyAntiCheat_Stats.json`).
 - Épületek kizárása; NPC találatok debug módban bevonhatók az elemzésbe.
-- Admin mentesség a sebzéscsökkentés alól.
+- A bypass jogosultsággal rendelkező játékosok mentesülnek a sebzéscsökkentés alól.
 - In-game admin parancsok ellenőrzéshez, resethez és finomhangoláshoz.
 - Opcionális külső webhook/HTTP küldés (queue, retry/backoff, rate limit).
 - Discord webhook endpoint automatikus támogatás (`content` payload).
@@ -96,13 +96,18 @@ Lépések:
 2. Állítsd a `DefaultLanguage` értéket a configban, vagy használd in-game: `/ac-lang <nyelvkód>`.
 3. Ellenőrizd pl. `/ac-check` paranccsal.
 
-## Parancsok (csak admin)
+## Jogosultságok
+
+- `mogyanticheat.admin`: Hozzáférés az összes chat parancshoz.
+- `mogyanticheat.bypass`: Mentesítés a sebzés nerf logika alól (kivéve ha `DebugMode` be van kapcsolva).
+
+## Parancsok
 
 - `/ac-check [jatekosnev]` - Részletes statisztika egy játékosról.
 - `/ac-list` - Online játékosok listázása átlag pontossággal és aktuális sebzés-szorzóval.
 - `/ac-reset [jatekosnev]` - Játékos statisztikáinak törlése.
 - `/ac-lang <nyelvkod>` - Alapértelmezett plugin nyelv váltása (pl. `en`, `hu`).
-- `/ac-debug <on|off>` - Debug mód ki/bekapcsolása (bekapcsolva adminra is mehet nerf, és minden nem épület combat entity találatai beleszámítanak).
+- `/ac-debug <on|off>` - Debug mód ki/bekapcsolása (bekapcsolva a bypass figyelmen kívül van hagyva, és minden nem épület combat entity találatai beleszámítanak).
 - `/ac-weapon <fegyverShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <ertek>` - Fegyverértékek módosítása in-game (és mentése configba).
 - `/ac-debug-log [clear]` - Debug log fájl útvonala vagy törlése.
 - `/ac-why [weaponShortName|active]` - Megmutatja, miért (nem) aktiválódik nerf az adott fegyvernél.
