@@ -1007,29 +1007,47 @@ namespace Oxide.Plugins
             return pack != null && pack.TryGetValue(key, out value) ? value : null;
         }
 
+        private string GetMessageForLanguage(string languageCode, string key)
+        {
+            string normalized = NormalizeLanguageCode(languageCode);
+            if (string.IsNullOrEmpty(normalized)) return null;
+
+            try
+            {
+                var messages = lang.GetMessages(normalized, this);
+                string fromLangApi;
+                if (messages != null && messages.TryGetValue(key, out fromLangApi) && !string.IsNullOrEmpty(fromLangApi))
+                {
+                    return fromLangApi;
+                }
+            }
+            catch
+            {
+                // Continue to in-code fallback dictionaries.
+            }
+
+            if (normalized == "hu") return GetMessageFromPack(MessagesHu, key);
+            if (normalized == "en") return GetMessageFromPack(MessagesEn, key);
+            return null;
+        }
+
         private string GetConfiguredFallbackMessage(string key)
         {
             string cfgLang = GetConfiguredDefaultLanguage();
+            string configured = GetMessageForLanguage(cfgLang, key);
+            if (!string.IsNullOrEmpty(configured)) return configured;
+
             if (cfgLang == "hu")
             {
-                return GetMessageFromPack(MessagesHu, key) ?? GetMessageFromPack(MessagesEn, key);
+                return GetMessageForLanguage("en", key);
             }
 
-            return GetMessageFromPack(MessagesEn, key) ?? GetMessageFromPack(MessagesHu, key);
+            return GetMessageForLanguage("hu", key);
         }
 
         private string Msg(BasePlayer player, string key, params object[] args)
         {
-            string message = null;
-            if (player != null)
-            {
-                message = lang.GetMessage(key, this, player.UserIDString);
-            }
-
-            if (string.IsNullOrEmpty(message))
-            {
-                message = GetConfiguredFallbackMessage(key);
-            }
+            string message = GetConfiguredFallbackMessage(key);
 
             if (string.IsNullOrEmpty(message))
             {
