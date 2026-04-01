@@ -11,6 +11,7 @@
 - Source of truth: `docs/SOURCE_OF_TRUTH.md`
 - Roadmap: `docs/ROADMAP.md`
 - Public API: `docs/PUBLIC_API.md`
+- Plugin fejlesztoi utmutato (HU): `docs/PLUGIN_DEV_GUIDE.hu.md`
 - Config séma: `docs/CONFIG_SCHEMA.md`
 - RFC sablon: `docs/RFCs/TEMPLATE.md`
 - Változásnapló: `CHANGELOG.md`
@@ -125,3 +126,5 @@ MIT License.
 
 ---
 Készítette: **Mogy**
+
+

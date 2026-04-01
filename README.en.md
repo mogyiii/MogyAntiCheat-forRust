@@ -11,6 +11,7 @@
 - Source of truth: `docs/SOURCE_OF_TRUTH.md`
 - Roadmap: `docs/ROADMAP.md`
 - Public API: `docs/PUBLIC_API.md`
+- Plugin development guide (EN): `docs/PLUGIN_DEV_GUIDE.en.md`
 - Config schema: `docs/CONFIG_SCHEMA.md`
 - RFC template: `docs/RFCs/TEMPLATE.md`
 - Change log: `CHANGELOG.md`
