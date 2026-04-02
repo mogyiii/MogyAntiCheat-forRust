@@ -1,4 +1,4 @@
-﻿# MogyAntiCheat for Rust (Oxide/uMod)
+# MogyAntiCheat for Rust (Oxide/uMod)
 
 [Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
@@ -11,6 +11,8 @@
 - Source of truth: `docs/SOURCE_OF_TRUTH.md`
 - Roadmap: `docs/ROADMAP.md`
 - Public API: `docs/PUBLIC_API.md`
+- Main features guide (EN): `docs/MAIN_FEATURES_GUIDE.en.md`
+- Admin recipes (EN): `docs/ADMIN_RECIPES.en.md`
 - Plugin development guide (EN): `docs/PLUGIN_DEV_GUIDE.en.md`
 - Config schema: `docs/CONFIG_SCHEMA.md`
 - RFC template: `docs/RFCs/TEMPLATE.md`
