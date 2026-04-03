@@ -1,4 +1,4 @@
-# MogyAntiCheat for Rust (Oxide/uMod)
+# Mogy's Anti-Cheat for Rust (Oxide/uMod)
 
 [Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
