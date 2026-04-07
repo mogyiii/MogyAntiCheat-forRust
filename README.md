@@ -118,6 +118,38 @@ To customize text:
 - `/ac-why [weaponShortName|active]` - Explain why nerf is or is not applied for a weapon.
 - `/ac-help` - Show available admin command list.
 
+## FAQ (Common Concerns)
+
+### Does this punish good players for having a great day?
+No. The system uses a rolling sample window (`SampleCount`), so short hot streaks are absorbed by normal variance. A player would need sustained, statistically abnormal performance to trigger meaningful penalties.
+
+### Is this just a consistency detector and not a human behavior model?
+It measures consistency with context, not raw hit-rate alone. Distance weighting (`SafeDistance`) matters, so close-range success is treated very differently from highly accurate long-range sprays.
+
+### Can one lucky spray cause a sudden nerf?
+Not realistically. Penalty is not binary and not instant-ban logic; it scales gradually. Minor overperformance may cause a tiny temporary multiplier change, not a hard punishment event.
+
+### Will high ping players get punished?
+Network conditions can affect many systems, but this plugin evaluates long-run shot-to-hit patterns, not a single delayed event. In practice, short-lived latency spikes should not look like cheat-grade consistency.
+
+### Is this a hidden/shadow ban?
+No. This plugin does not ban by itself. It applies a configurable outgoing damage multiplier as a soft mitigation while suspicious patterns continue.
+
+### What about god-tier legit players?
+Default values are intentionally conservative and leave a large skill buffer. Server owners can raise/lower `MaxAccuracy`, `SampleCount`, and `SafeDistance` to match their population.
+
+### Is this easy for cheat makers to bypass?
+Any anti-cheat can be challenged, but behavior-based detection raises attacker cost because it targets sustained statistical patterns instead of one simple signature.
+
+### Does it treat all weapons the same?
+No. Tuning is per weapon under `Weapons`, so thresholds can be adjusted for each recoil profile and intended engagement range.
+
+### Is this replacing EAC / server moderation?
+No. Think of it as a mitigation layer, not a full replacement. It reduces damage impact from suspicious behavior and provides actionable signals for admins.
+
+### How can admins verify why a player was affected?
+Use `/ac-check` and `/ac-why` for direct insight, and enable debug mode when investigating edge cases in live conditions.
+
 ## License
 
 MIT License.

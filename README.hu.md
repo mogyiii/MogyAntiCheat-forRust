@@ -120,6 +120,38 @@ Példák:
 - `/ac-weapon active SafeDistance 30`
 - `/ac-debug on`
 
+## Gyakori kérdések (FAQ)
+
+### Bünteti a jó játékosokat, ha épp nagyon jó napjuk van?
+Nem. A rendszer gördülő mintát használ (`SampleCount`), ezért a rövid "hot streak" időszakok beleférnek a normál szórásba. Érdemi nerfhez tartósan, statisztikailag szokatlan teljesítmény kell.
+
+### Ez csak konzisztenciát mér, nem emberi viselkedést?
+Kontekstussal mér konzisztenciát, nem csak nyers hit-rate-et. A távolság súlyozása (`SafeDistance`) számít, ezért a közeli találatok és a nagyon pontos távoli spray-k eltérő elbírálást kapnak.
+
+### Egy szerencsés spray-től hirtelen jöhet nerf?
+Gyakorlatban nem. A rendszer nem bináris és nem instant ban logika; fokozatosan skáláz. Kisebb túlteljesítés legfeljebb átmeneti, kis mértékű szorzóváltozást okozhat.
+
+### A magas pinges játékosokat bünteti?
+A hálózati ingadozás sok rendszert érinthet, de ez a plugin hosszabb távú lövés-találat mintát néz, nem egyetlen késő eseményt. A rövid latency spike-ok önmagukban nem néznek ki cheat-szintű konzisztenciának.
+
+### Ez gyakorlatilag shadow ban?
+Nem. A plugin önmagában nem tilt. Konfigurálható kimenő sebzés-szorzót alkalmaz ideiglenes, "soft" mitigációként, amíg a gyanús minta fennáll.
+
+### Mi van a nagyon erős, de legit játékosokkal?
+Az alapértékek szándékosan konzervatívak, és nagy skill buffert hagynak. A szervertulajdonosok a `MaxAccuracy`, `SampleCount` és `SafeDistance` értékeket a saját közösséghez igazíthatják.
+
+### Könnyen megkerülhető csaló oldalon?
+Bármely anti-cheat támadható, de a viselkedésalapú megközelítés drágítja a megkerülést, mert tartós statisztikai mintát céloz, nem egyetlen egyszerű szignatúrát.
+
+### Minden fegyvert ugyanúgy kezel?
+Nem. A hangolás fegyverenként történik a `Weapons` részben, így külön küszöbök adhatók az eltérő recoil és tipikus harci távok alapján.
+
+### Ez kiváltja az EAC-t vagy az admin moderációt?
+Nem. Ezt inkább egy kiegészítő mitigációs rétegként érdemes kezelni. Csökkenti a gyanús viselkedés sebzés-hatását, és hasznos jelzéseket ad az adminoknak.
+
+### Hogyan látja az admin, miért kapott valaki nerfet?
+Használd az `/ac-check` és `/ac-why` parancsokat; határesetek vizsgálatához érdemes debug módot is bekapcsolni.
+
 ## Licenc
 
 MIT License.
