@@ -1,6 +1,6 @@
 ﻿# MogyAntiCheat for Rust (Oxide/uMod)
 
-[English docs](README.en.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
+[English docs](README.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Version](https://img.shields.io/badge/version-1.9.1-blue)
@@ -11,7 +11,7 @@
 - Source of truth: `docs/SOURCE_OF_TRUTH.md`
 - Roadmap: `docs/ROADMAP.md`
 - Public API: `docs/PUBLIC_API.md`
-- Plugin fejlesztoi utmutato (HU): `docs/PLUGIN_DEV_GUIDE.hu.md`
+- Plugin fejlesztői útmutató (HU): `docs/PLUGIN_DEV_GUIDE.hu.md`
 - Config séma: `docs/CONFIG_SCHEMA.md`
 - RFC sablon: `docs/RFCs/TEMPLATE.md`
 - Változásnapló: `CHANGELOG.md`
@@ -104,12 +104,12 @@ Lépések:
 
 ## Parancsok
 
-- `/ac-check [jatekosnev]` - Részletes statisztika egy játékosról.
+- `/ac-check [játékosnév]` - Részletes statisztika egy játékosról.
 - `/ac-list` - Online játékosok listázása átlag pontossággal és aktuális sebzés-szorzóval.
-- `/ac-reset [jatekosnev]` - Játékos statisztikáinak törlése.
-- `/ac-lang <nyelvkod>` - Alapértelmezett plugin nyelv váltása (pl. `en`, `hu`).
+- `/ac-reset [játékosnév]` - Játékos statisztikáinak törlése.
+- `/ac-lang <nyelvkód>` - Alapértelmezett plugin nyelv váltása (pl. `en`, `hu`).
 - `/ac-debug <on|off>` - Debug mód ki/bekapcsolása (bekapcsolva a bypass figyelmen kívül van hagyva, és minden nem épület combat entity találatai beleszámítanak).
-- `/ac-weapon <fegyverShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <ertek>` - Fegyverértékek módosítása in-game (és mentése configba).
+- `/ac-weapon <fegyverShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <érték>` - Fegyverértékek módosítása in-game (és mentése configba).
 - `/ac-debug-log [clear]` - Debug log fájl útvonala vagy törlése.
 - `/ac-why [weaponShortName|active]` - Megmutatja, miért (nem) aktiválódik nerf az adott fegyvernél.
 - `/ac-help` - Elérhető admin parancsok listázása.

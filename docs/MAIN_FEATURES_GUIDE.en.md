@@ -3,7 +3,7 @@
 This guide explains the main features of `MogyAntiCheat` in practical, server-admin terms.
 
 Quick scope note:
-- `README.en.md` is broad and startup-focused.
+- `README.md` is broad and startup-focused.
 - this file explains feature behavior and intent.
 - `docs/ADMIN_RECIPES.en.md` is step-by-step operations playbook.
 
@@ -123,7 +123,8 @@ Data is saved on server save and plugin unload, so anti-cheat learning survives 
 ---
 
 Related docs:
-- `README.en.md`
+- `README.md`
 - `docs/CONFIG_SCHEMA.md`
 - `docs/PUBLIC_API.md`
 - `docs/PLUGIN_DEV_GUIDE.en.md`
+

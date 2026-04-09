@@ -5,7 +5,7 @@ Státusz értékek: `Planned`, `In Progress`, `Done`, `Deferred`.
 
 ## M1 - Nemzetköziesítés (i18n) alapok
 
-Státusz: `In Progress`
+Státusz: `Done`
 Célidő: 2026 Q2
 
 Cél:
@@ -80,3 +80,4 @@ RFC:
 
 - Minden mérföldkőhöz külön RFC készüljön a `docs/RFCs/` alatt.
 - Implementáció csak RFC elfogadás után induljon.
+

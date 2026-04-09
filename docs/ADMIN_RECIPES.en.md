@@ -1,11 +1,11 @@
 # MogyAntiCheat Admin Recipes (EN)
 
-This document is a practical, task-oriented companion to `README.en.md` and `docs/MAIN_FEATURES_GUIDE.en.md`.
+This document is a practical, task-oriented companion to `README.md` and `docs/MAIN_FEATURES_GUIDE.en.md`.
 Use it when you need exact steps, examples, and safe rollout patterns.
 
 ## README vs Main Features vs This File
 
-- `README.en.md`: quick start + full project snapshot.
+- `README.md`: quick start + full project snapshot.
 - `docs/MAIN_FEATURES_GUIDE.en.md`: feature-focused explanation of how the anti-cheat works.
 - `docs/ADMIN_RECIPES.en.md` (this file): hands-on operations recipes with copy-ready examples.
 
@@ -140,7 +140,8 @@ Recommended first moves:
 ---
 
 Related:
-- `README.en.md`
+- `README.md`
 - `docs/MAIN_FEATURES_GUIDE.en.md`
 - `docs/CONFIG_SCHEMA.md`
 - `docs/PUBLIC_API.md`
+

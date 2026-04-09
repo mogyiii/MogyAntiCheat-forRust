@@ -1,11 +1,11 @@
-﻿# MogyAntiCheat Roadmap
+# MogyAntiCheat Roadmap
 
 This roadmap tracks planned feature milestones.
 Status values: `Planned`, `In Progress`, `Done`, `Deferred`.
 
 ## M1 - Internationalization (i18n) Foundation
 
-Status: `In Progress`
+Status: `Done`
 Target: Q2 2026
 
 Goal:
@@ -79,6 +79,7 @@ RFC:
 
 - Each milestone should be detailed in its own RFC under `docs/RFCs/`.
 - Implementation is done only after RFC acceptance.
+
 
 
 

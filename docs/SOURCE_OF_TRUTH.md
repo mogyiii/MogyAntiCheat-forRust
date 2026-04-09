@@ -1,6 +1,6 @@
-﻿# MogyAntiCheat Source of Truth
+# MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.0).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.1).
 
 ## Purpose
 
@@ -200,7 +200,7 @@ If a weapon has no entry, history limit falls back to `40` during hit registrati
 When plugin behavior changes, update all of:
 
 1. `MogyAntiCheat.cs` version string.
-2. `README.en.md`.
+2. `README.md`.
 3. This file (`docs/SOURCE_OF_TRUTH.md`).
 
 
@@ -219,5 +219,6 @@ Behavior:
 - Failed sends are retried with exponential backoff, then dropped after max retries.
 - Anti-cheat core flow is fail-safe and does not block gameplay on webhook errors.
 - Discord webhook endpoints receive Discord-compatible request body (username + content).
+
 
 
