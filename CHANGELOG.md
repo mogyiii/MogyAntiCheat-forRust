@@ -11,13 +11,17 @@ The format is based on Keep a Changelog.
 - Runtime admin command `/ac-weapon <weapon|active> <MaxAccuracy|SampleCount|SafeDistance> <value>` to edit weapon thresholds in-game.
 - Runtime admin commands `/ac-debug-log [clear]` and `/ac-why [weapon|active]` for file-based diagnostics and nerf reason inspection.
 - Runtime admin command `/ac-help` to list all available MogyAC commands in chat.
+- Roadmap milestone `M5 - Carbon Mod Compatibility` added (`docs/ROADMAP.md`, `docs/ROADMAP.hu.md`).
+- New RFC draft for Carbon support planning: `docs/RFCs/RFC-0004-carbon-compatibility.md`.
+- Runtime compatibility layer for Carbon: startup runtime detection and runtime-aware data/debug path resolution.
 
 ### Changed
-- Plugin version is currently `1.9.1` in source metadata.
+- Plugin version is currently `1.9.2` in source metadata.
 - Language selection now follows plugin `DefaultLanguage` deterministically for command/report messages.
 - Hungarian language pack and Hungarian README text updated with proper UTF-8 characters.
 - In `DebugMode`, admin nerf is applied too and NPC targets are included in hit analysis.
 - `DebugMode` target filtering broadened to all non-building combat entities (covers `entity.spawn player` debug targets too).
+- Installation/runtime docs now include both Oxide/uMod and Carbon deployment notes.
 
 ## [1.7.0] - 2026-03-25
 

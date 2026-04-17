@@ -1,9 +1,9 @@
-﻿# MogyAntiCheat for Rust (Oxide/uMod)
+﻿# MogyAntiCheat for Rust (Oxide/uMod + Carbon)
 
 [English docs](README.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9.1-blue)
+![Version](https://img.shields.io/badge/version-1.9.2-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
 ## Projekt dokumentáció
@@ -16,7 +16,7 @@
 - RFC sablon: `docs/RFCs/TEMPLATE.md`
 - Változásnapló: `CHANGELOG.md`
 
-A MogyAntiCheat egy statisztikai alapú anti-cheat plugin Rust (Oxide/uMod) szerverekhez.
+A MogyAntiCheat egy statisztikai alapú anti-cheat plugin Rust szerverekhez (Oxide/uMod vagy Carbon).
 A hagyományos azonnali tiltás helyett dinamikusan csökkenti a gyanús játékosok kimenő sebzését, így kisebb a false positive találatokból adódó kár.
 
 ## Működési elv
@@ -33,7 +33,7 @@ A plugin nem fájlokat vagy folyamatokat vizsgál, hanem harci eseményekből do
 
 - Időablakos lövés-találat párosítás.
 - Fegyverenként külön finomhangolható küszöbök.
-- Tartós adattárolás újraindítás után is (`oxide/data/MogyAntiCheat_Stats.json`).
+- Tartós adattárolás újraindítás után is (runtime data mappában).
 - Épületek kizárása; NPC találatok debug módban bevonhatók az elemzésbe.
 - A bypass jogosultsággal rendelkező játékosok mentesülnek a sebzéscsökkentés alól.
 - In-game admin parancsok ellenőrzéshez, resethez és finomhangoláshoz.
@@ -42,10 +42,14 @@ A plugin nem fájlokat vagy folyamatokat vizsgál, hanem harci eseményekből do
 
 ## Telepítés
 
-1. Telepítsd az Oxide/uMod rendszert a Rust szerveredre.
-2. Másold a `MogyAntiCheat.cs` fájlt a `server/<identity>/oxide/plugins/` mappába.
+1. Telepítsd az Oxide/uMod vagy Carbon rendszert a Rust szerveredre.
+2. Másold a `MogyAntiCheat.cs` fájlt ide:
+   - Oxide/uMod: `server/<identity>/oxide/plugins/`
+   - Carbon: `server/<identity>/carbon/plugins/`
 3. Töltsd újra a plugint vagy indítsd újra a szervert.
-4. Állítsd be a küszöböket a `server/<identity>/oxide/config/MogyAntiCheat.json` fájlban.
+4. Állítsd be a küszöböket itt:
+   - Oxide/uMod: `server/<identity>/oxide/config/MogyAntiCheat.json`
+   - Carbon: `server/<identity>/carbon/configs/MogyAntiCheat.json` (vagy a szervered Carbon config könyvtára)
 
 ## Konfiguráció
 
@@ -84,12 +88,18 @@ Megjegyzés:
 - Discord endpoint esetén a plugin automatikusan Discord-kompatibilis (`username` + `content`) payloadot küld.
 - A webhook küldés független a `PublicApi.Enabled` értéktől.
 
+## Runtime megjegyzések (Oxide/Carbon)
+
+- A plugin közös kódbázist használ mindkét runtime-hoz.
+- Induláskor felismeri a környezetet (`Oxide/uMod` vagy `Carbon`), és ehhez igazítja a data/debug fájl útvonalat.
+- Ha tárhely/host sajátosság miatt eltérő pathot használsz, a szerver startup log sora mutatja az aktív data útvonalat.
+
 ## Nyelvi testreszabás
 
 Alap fájlok:
 
-- `oxide/lang/en/MogyAntiCheat.json`
-- `oxide/lang/hu/MogyAntiCheat.json`
+- Oxide/uMod: `oxide/lang/en/MogyAntiCheat.json`, `oxide/lang/hu/MogyAntiCheat.json`
+- Carbon: használd a saját Carbon nyelvi könyvtárad (gyakran `carbon/lang/...`)
 
 Lépések:
 
@@ -158,5 +168,8 @@ MIT License.
 
 ---
 Készítette: **Mogy**
+
+
+
 
 

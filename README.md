@@ -1,9 +1,9 @@
-# Mogy's Anti-Cheat for Rust (Oxide/uMod)
+# Mogy's Anti-Cheat for Rust (Oxide/uMod + Carbon)
 
 [Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9.1-blue)
+![Version](https://img.shields.io/badge/version-1.9.2-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
 ## Project Documentation
@@ -18,7 +18,7 @@
 - RFC template: `docs/RFCs/TEMPLATE.md`
 - Change log: `CHANGELOG.md`
 
-MogyAntiCheat is a statistical anti-cheat plugin for Rust servers running Oxide/uMod.
+MogyAntiCheat is a statistical anti-cheat plugin for Rust servers running Oxide/uMod or Carbon.
 Instead of instantly banning players, it dynamically reduces outgoing damage for suspicious combat behavior. This lowers the impact of false positives while still protecting fair gameplay.
 
 ## Core Idea
@@ -35,7 +35,7 @@ The plugin does not scan files or processes. It observes combat events and compu
 
 - Time-aware shot/hit correlation using shot expiry windows.
 - Per-weapon tuning through config (`MaxAccuracy`, `SampleCount`, `SafeDistance`).
-- Persistent stats across restarts (`oxide/data/MogyAntiCheat_Stats.json`).
+- Persistent stats across restarts (runtime data directory).
 - Ignores buildings; NPC targets are included when `DebugMode` is enabled.
 - Players with bypass permission are exempt from damage nerfing.
 - In-game admin chat commands for checks and resets.
@@ -45,10 +45,14 @@ The plugin does not scan files or processes. It observes combat events and compu
 
 ## Installation
 
-1. Install Oxide/uMod on your Rust server.
-2. Copy `MogyAntiCheat.cs` into `server/<identity>/oxide/plugins/`.
+1. Install Oxide/uMod or Carbon on your Rust server.
+2. Copy `MogyAntiCheat.cs` into:
+   - Oxide/uMod: `server/<identity>/oxide/plugins/`
+   - Carbon: `server/<identity>/carbon/plugins/`
 3. Reload the plugin or restart the server.
-4. Configure thresholds in `server/<identity>/oxide/config/MogyAntiCheat.json`.
+4. Configure thresholds in:
+   - Oxide/uMod: `server/<identity>/oxide/config/MogyAntiCheat.json`
+   - Carbon: `server/<identity>/carbon/configs/MogyAntiCheat.json` (or your Carbon config directory)
 
 ## Configuration
 
@@ -87,12 +91,18 @@ Notes:
 - For Discord endpoints, the plugin automatically sends Discord-compatible payloads (`username` + `content`).
 - Webhook delivery is independent from `PublicApi.Enabled`.
 
+## Runtime Notes (Oxide/Carbon)
+
+- The plugin keeps one shared codebase for both runtimes.
+- On startup, it detects runtime environment (`Oxide/uMod` or `Carbon`) and resolves data/debug file path accordingly.
+- If Carbon runtime-specific path behavior differs on your host, prefer the server log startup line as source of truth for active data path.
+
 ## Language Customization
 
 Default files:
 
-- `oxide/lang/en/MogyAntiCheat.json`
-- `oxide/lang/hu/MogyAntiCheat.json`
+- Oxide/uMod: `oxide/lang/en/MogyAntiCheat.json`, `oxide/lang/hu/MogyAntiCheat.json`
+- Carbon: use your Carbon language directory if separated (commonly `carbon/lang/...`)
 
 To customize text:
 

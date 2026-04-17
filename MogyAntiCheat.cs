@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Mogy AntiCheat", "Mogy", "1.9.1")]
+    [Info("Mogy AntiCheat", "Mogy", "1.9.2")]
     [Description("Tracks weapon accuracy trends and dynamically reduces suspicious player damage using configurable thresholds and localized admin commands.")]
     public class MogyAntiCheat : RustPlugin
     {
@@ -21,9 +21,13 @@ namespace Oxide.Plugins
         private const float WebhookRateWindowSeconds = 1f;
         private const string PermissionAdmin = "mogyanticheat.admin";
         private const string PermissionBypass = "mogyanticheat.bypass";
+        private const string RuntimeOxide = "Oxide/uMod";
+        private const string RuntimeCarbon = "Carbon";
 
         private DynamicConfigFile _storedData;
         private string _debugLogPath;
+        private string _runtimeName = RuntimeOxide;
+        private string _runtimeDataDirectory = string.Empty;
         private readonly Dictionary<ulong, Dictionary<string, WeaponData>> _playerStats = new Dictionary<ulong, Dictionary<string, WeaponData>>();
         private readonly Dictionary<ulong, float> _lastHitTime = new Dictionary<ulong, float>();
         private readonly Dictionary<ulong, HashSet<string>> _activeSuspicionByWeapon = new Dictionary<ulong, HashSet<string>>();
@@ -213,17 +217,22 @@ namespace Oxide.Plugins
 
         void Init()
         {
+            _runtimeName = DetectRuntimeName();
+            _runtimeDataDirectory = ResolveDataDirectory(_runtimeName);
+
             lang.RegisterMessages(MessagesEn, this, "en");
             lang.RegisterMessages(MessagesHu, this, "hu");
             permission.RegisterPermission(PermissionAdmin, this);
             permission.RegisterPermission(PermissionBypass, this);
 
             _storedData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_Stats");
-            _debugLogPath = Path.Combine(Interface.Oxide.DataDirectory, DebugLogFileName);
+            _debugLogPath = Path.Combine(_runtimeDataDirectory, DebugLogFileName);
             LoadStats();
             EnsureConfigDefaults();
             _webhookWindowStart = UnityEngine.Time.realtimeSinceStartup;
             _webhookPumpTimer = timer.Every(0.25f, PumpWebhookQueue);
+
+            Puts($"Runtime detected: {_runtimeName} | Data directory: {_runtimeDataDirectory}");
         }
 
         void OnServerSave() => SaveStats();
@@ -241,6 +250,63 @@ namespace Oxide.Plugins
         private bool HasBypass(BasePlayer player)
         {
             return player != null && (player.IsAdmin || permission.UserHasPermission(player.UserIDString, PermissionBypass));
+        }
+
+        private string DetectRuntimeName()
+        {
+            try
+            {
+                var hasCarbonAssembly = AppDomain.CurrentDomain
+                    .GetAssemblies()
+                    .Any(a => a.GetName().Name.IndexOf("Carbon", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                return hasCarbonAssembly ? RuntimeCarbon : RuntimeOxide;
+            }
+            catch
+            {
+                return RuntimeOxide;
+            }
+        }
+
+        private string ResolveDataDirectory(string runtimeName)
+        {
+            string oxideDataDirectory = Interface.Oxide.DataDirectory;
+            if (!string.Equals(runtimeName, RuntimeCarbon, StringComparison.OrdinalIgnoreCase))
+            {
+                return oxideDataDirectory;
+            }
+
+            string carbonDataDirectory = TryResolveCarbonDataDirectory(oxideDataDirectory);
+            return string.IsNullOrWhiteSpace(carbonDataDirectory) ? oxideDataDirectory : carbonDataDirectory;
+        }
+
+        private string TryResolveCarbonDataDirectory(string oxideDataDirectory)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(oxideDataDirectory) || !Directory.Exists(oxideDataDirectory))
+                {
+                    return string.Empty;
+                }
+
+                var dataDir = new DirectoryInfo(oxideDataDirectory);
+                if (dataDir.Parent == null || dataDir.Parent.Parent == null)
+                {
+                    return string.Empty;
+                }
+
+                // Typical Rust layout:
+                // server/<identity>/oxide/data
+                // server/<identity>/carbon/data
+                string identityRoot = dataDir.Parent.Parent.FullName;
+                string carbonData = Path.Combine(identityRoot, "carbon", "data");
+
+                return Directory.Exists(carbonData) ? carbonData : string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         private void SaveStats()

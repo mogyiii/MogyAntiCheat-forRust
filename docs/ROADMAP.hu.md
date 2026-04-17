@@ -76,6 +76,28 @@ Elfogadási feltételek:
 RFC:
 - `docs/RFCs/RFC-0003-webhook-http-integration.md`
 
+## M5 - Carbon Mod kompatibilitás
+
+Státusz: `Planned`
+Célidő: 2026 Q4
+
+Cél:
+- Első osztályú kompatibilitás biztosítása Carbon alapú Rust szerverekhez az Oxide/uMod támogatás megtartása mellett.
+
+Szállítandók:
+- Kompatibilitási mátrix futásidejű viselkedésre (hookok, jogosultságok, data/config/lang útvonalak, chat parancsok).
+- Absztrakciós pontok a framework-specifikus API és fájlrendszer eltérések kezelésére.
+- Validációs checklist mindkét környezetre (Oxide/uMod és Carbon).
+- Frissített telepítési és üzemeltetési dokumentáció mindkét runtime-hoz.
+
+Elfogadási feltételek:
+- A plugin mindkét runtime alatt fut, a core anti-cheat működés regressziója nélkül.
+- Az admin parancsok és az adattárolás konzisztensen működik Oxide/uMod és Carbon alatt is.
+- Minden ismert runtime-specifikus korlát explicit dokumentálva van.
+
+RFC:
+- `docs/RFCs/RFC-0004-carbon-compatibility.md`
+
 ## Megjegyzés
 
 - Minden mérföldkőhöz külön RFC készüljön a `docs/RFCs/` alatt.

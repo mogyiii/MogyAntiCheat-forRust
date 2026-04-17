@@ -1,10 +1,10 @@
 # MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.1).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.2).
 
 ## Purpose
 
-MogyAntiCheat is a mitigation-first anti-cheat layer for Rust (Oxide/uMod):
+MogyAntiCheat is a mitigation-first anti-cheat layer for Rust (Oxide/uMod and Carbon):
 
 - Detect statistically suspicious shooting behavior.
 - Apply dynamic damage reduction instead of immediate bans.
@@ -45,8 +45,14 @@ Out of scope:
 Persistence:
 
 - Saved on `OnServerSave` and `Unload`.
-- Data file: `oxide/data/MogyAntiCheat_Stats.json`.
+- Data file: `MogyAntiCheat_Stats.json` under runtime data directory.
 - Only `History` is persisted; pending misses and active suspicion cache are runtime-only.
+
+Runtime compatibility:
+
+- Plugin keeps a single shared codebase for Oxide/uMod and Carbon.
+- Runtime is detected at startup by loaded assembly name scan.
+- Debug/data path uses runtime-aware resolution with Oxide data path fallback.
 
 ## Event Flow
 
