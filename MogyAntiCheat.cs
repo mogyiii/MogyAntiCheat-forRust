@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Mogy AntiCheat", "Mogy", "1.9.2")]
+    [Info("Mogy AntiCheat", "Mogy", "1.9.3")]
     [Description("Tracks weapon accuracy trends and dynamically reduces suspicious player damage using configurable thresholds and localized admin commands.")]
     public class MogyAntiCheat : RustPlugin
     {
@@ -1185,9 +1185,10 @@ namespace Oxide.Plugins
 
             int limit = 40;
             var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
-            if (weaponsCfg != null && weaponsCfg.ContainsKey(wName))
+            string cfgKey = ResolveWeaponConfigKey(weaponsCfg, wName);
+            if (cfgKey != null)
             {
-                var entry = weaponsCfg[wName] as Dictionary<string, object>;
+                var entry = weaponsCfg[cfgKey] as Dictionary<string, object>;
                 if (entry != null && entry.ContainsKey("SampleCount"))
                 {
                     limit = Convert.ToInt32(entry["SampleCount"]);
@@ -1245,7 +1246,8 @@ namespace Oxide.Plugins
             };
 
             var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
-            if (weaponsCfg == null || !weaponsCfg.ContainsKey(weaponName))
+            string cfgKey = ResolveWeaponConfigKey(weaponsCfg, weaponName);
+            if (cfgKey == null)
             {
                 evaluation.MaxAccuracy = 1f;
                 evaluation.SafeDistance = 1f;
@@ -1253,7 +1255,7 @@ namespace Oxide.Plugins
                 return evaluation;
             }
 
-            var cfg = weaponsCfg[weaponName] as Dictionary<string, object>;
+            var cfg = weaponsCfg[cfgKey] as Dictionary<string, object>;
             if (cfg == null)
             {
                 evaluation.MaxAccuracy = 1f;
@@ -1366,6 +1368,21 @@ namespace Oxide.Plugins
             return activeWeapon == null ? string.Empty : activeWeapon.ShortPrefabName.Replace(".entity", "");
         }
 
+        // Carbon omits the category prefix from ShortPrefabName (e.g. "m39" instead of Oxide's "rifle.m39").
+        // Try exact match first, then fall back to matching the segment after the last dot.
+        private string ResolveWeaponConfigKey(Dictionary<string, object> weaponsCfg, string wName)
+        {
+            if (weaponsCfg == null || string.IsNullOrEmpty(wName)) return null;
+            if (weaponsCfg.ContainsKey(wName)) return wName;
+            foreach (var key in weaponsCfg.Keys)
+            {
+                int dot = key.LastIndexOf('.');
+                if (dot >= 0 && string.Equals(key.Substring(dot + 1), wName, StringComparison.OrdinalIgnoreCase))
+                    return key;
+            }
+            return null;
+        }
+
         private bool TrySetWeaponConfigValue(string weaponName, string fieldArg, string valueArg, out string canonicalField, out string normalizedValue)
         {
             canonicalField = null;
@@ -1385,13 +1402,14 @@ namespace Oxide.Plugins
             }
 
             Dictionary<string, object> weaponCfg;
-            if (weaponsCfg.ContainsKey(weaponName))
+            string existingKey = ResolveWeaponConfigKey(weaponsCfg, weaponName);
+            if (existingKey != null)
             {
-                weaponCfg = weaponsCfg[weaponName] as Dictionary<string, object>;
+                weaponCfg = weaponsCfg[existingKey] as Dictionary<string, object>;
                 if (weaponCfg == null)
                 {
                     weaponCfg = new Dictionary<string, object>();
-                    weaponsCfg[weaponName] = weaponCfg;
+                    weaponsCfg[existingKey] = weaponCfg;
                 }
             }
             else
@@ -1798,7 +1816,7 @@ namespace Oxide.Plugins
             }
 
             var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
-            if (weaponsCfg == null || !weaponsCfg.ContainsKey(weaponName))
+            if (ResolveWeaponConfigKey(weaponsCfg, weaponName) == null)
             {
                 SendReply(player, Msg(player, "WhyNoConfig", weaponName));
             }
