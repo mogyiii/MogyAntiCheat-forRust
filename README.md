@@ -163,6 +163,7 @@ Use `/ac-check` and `/ac-why` for direct insight, and enable debug mode when inv
 ## License
 
 MIT License.
+## Video
 <a href="https://www.youtube.com/watch?v=L2G-LWRQCAI" target="_blank">
  <img src="https://img.youtube.com/vi/L2G-LWRQCAI/0.jpg" alt="Mogy Anti-Cheat" width="600" border="10" />
 </a>
