@@ -3,7 +3,7 @@
 [Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9.2-blue)
+![Version](https://img.shields.io/badge/version-1.9.3-blue)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
 ## Project Documentation
