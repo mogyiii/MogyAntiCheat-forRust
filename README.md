@@ -1,9 +1,5 @@
 # Mogy's Anti-Cheat for Rust (Oxide/uMod + Carbon)
 
-<a href="https://www.youtube.com/watch?v=L2G-LWRQCAI" target="_blank">
- <img src="https://img.youtube.com/vi/L2G-LWRQCAI/0.jpg" alt="Mogy Anti-Cheat" width="600" border="10" />
-</a>
-
 [Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -167,6 +163,9 @@ Use `/ac-check` and `/ac-why` for direct insight, and enable debug mode when inv
 ## License
 
 MIT License.
+<a href="https://www.youtube.com/watch?v=L2G-LWRQCAI" target="_blank">
+ <img src="https://img.youtube.com/vi/L2G-LWRQCAI/0.jpg" alt="Mogy Anti-Cheat" width="600" border="10" />
+</a>
 
 ---
 Created by **Mogy**
