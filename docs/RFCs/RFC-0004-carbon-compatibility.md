@@ -1,6 +1,6 @@
 # RFC-0004: Carbon Mod Compatibility
 
-Status: `Draft`
+Status: `Accepted`
 Owner: `Mogy`
 Created: `2026-04-09`
 Target Milestone: `M5`

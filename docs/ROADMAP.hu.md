@@ -78,7 +78,7 @@ RFC:
 
 ## M5 - Carbon Mod kompatibilitás
 
-Státusz: `Planned`
+Státusz: `Done`
 Célidő: 2026 Q4
 
 Cél:

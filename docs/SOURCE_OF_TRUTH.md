@@ -1,6 +1,6 @@
 # MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.2).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.4).
 
 ## Purpose
 

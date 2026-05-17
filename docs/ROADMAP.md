@@ -77,7 +77,7 @@ RFC:
 
 ## M5 - Carbon Mod Compatibility
 
-Status: `Planned`
+Status: `Done`
 Target: Q4 2026
 
 Goal:

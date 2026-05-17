@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -11,28 +11,36 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Mogy AntiCheat", "Mogy", "1.9.3")]
+    [Info("Mogy AntiCheat", "Mogy", "1.9.4")]
     [Description("Tracks weapon accuracy trends and dynamically reduces suspicious player damage using configurable thresholds and localized admin commands.")]
     public class MogyAntiCheat : RustPlugin
     {
         private const string DefaultLanguageFallback = "en";
-        private const string PublicApiVersionCurrent = "1.0.0";
+        private const string PublicApiVersionCurrent = "1.1.0";
         private const string DebugLogFileName = "MogyAntiCheat_Debug.log";
         private const float WebhookRateWindowSeconds = 1f;
         private const string PermissionAdmin = "mogyanticheat.admin";
         private const string PermissionBypass = "mogyanticheat.bypass";
         private const string RuntimeOxide = "Oxide/uMod";
         private const string RuntimeCarbon = "Carbon";
+        private const int TelemetryQueueMaxSize = 5000;
+        private const float TelemetryFlushIntervalSeconds = 300f;
+        private const int PingBaselineSamples = 50;
 
         private DynamicConfigFile _storedData;
+        private DynamicConfigFile _kdaData;
         private string _debugLogPath;
         private string _runtimeName = RuntimeOxide;
         private string _runtimeDataDirectory = string.Empty;
         private readonly Dictionary<ulong, Dictionary<string, WeaponData>> _playerStats = new Dictionary<ulong, Dictionary<string, WeaponData>>();
         private readonly Dictionary<ulong, float> _lastHitTime = new Dictionary<ulong, float>();
         private readonly Dictionary<ulong, HashSet<string>> _activeSuspicionByWeapon = new Dictionary<ulong, HashSet<string>>();
+        private readonly Dictionary<ulong, PlayerPingStats> _playerPingStats = new Dictionary<ulong, PlayerPingStats>();
+        private readonly Dictionary<ulong, PlayerKDAStats> _playerKDAStats = new Dictionary<ulong, PlayerKDAStats>();
+        private readonly List<ShotTelemetryEvent> _telemetryQueue = new List<ShotTelemetryEvent>();
         private readonly Queue<WebhookEnvelope> _webhookQueue = new Queue<WebhookEnvelope>();
         private Timer _webhookPumpTimer;
+        private Timer _telemetryFlushTimer;
         private bool _webhookRequestInFlight;
         private float _webhookWindowStart;
         private int _webhookSentInWindow;
@@ -80,7 +88,12 @@ namespace Oxide.Plugins
             ["HelpWeapon"] = "/ac-weapon <weapon|active> <MaxAccuracy|SampleCount|SafeDistance> <value> - Update weapon config.",
             ["HelpDebugLog"] = "/ac-debug-log [clear] - Show or clear debug log file.",
             ["HelpWhy"] = "/ac-why [weapon|active] - Explain why nerf is or is not applied.",
-            ["HelpHelp"] = "/ac-help - Show this command list."
+            ["HelpStats"] = "/ac-stats [playerName] - Show K/D/A and ping stats for a player.",
+            ["HelpHelp"] = "/ac-help - Show this command list.",
+            ["StatsKDA"] = "K/D/A: {0}/{1}/{2} (KDR: {3:F2})",
+            ["StatsPing"] = "Ping: avg={0:F0}ms  min={1}ms  max={2}ms  stddev={3:F1}ms",
+            ["StatsNoPingData"] = "Ping: No baseline data yet.",
+            ["StatsPingAnomaly"] = "Ping anomalies (24h): {0}"
         };
 
         private static readonly Dictionary<string, string> MessagesHu = new Dictionary<string, string>
@@ -126,34 +139,55 @@ namespace Oxide.Plugins
             ["HelpWeapon"] = "/ac-weapon <fegyver|active> <MaxAccuracy|SampleCount|SafeDistance> <ertek> - Fegyver config frissítése.",
             ["HelpDebugLog"] = "/ac-debug-log [clear] - Debug log fájl útvonala vagy törlése.",
             ["HelpWhy"] = "/ac-why [weapon|active] - Megmutatja, miért (nem) aktív a nerf.",
-            ["HelpHelp"] = "/ac-help - Ez a parancslista."
+            ["HelpStats"] = "/ac-stats [jatekosnev] - K/D/A és ping statisztika egy játékosról.",
+            ["HelpHelp"] = "/ac-help - Ez a parancslista.",
+            ["StatsKDA"] = "K/D/A: {0}/{1}/{2} (KDR: {3:F2})",
+            ["StatsPing"] = "Ping: avg={0:F0}ms  min={1}ms  max={2}ms  stddev={3:F1}ms",
+            ["StatsNoPingData"] = "Ping: Még nincs alap adat.",
+            ["StatsPingAnomaly"] = "Ping anomáliák (24h): {0}"
         };
 
         private struct ShotResult
         {
             public bool IsHit;
             public float Distance;
+            public int PingMs;
+            public int DeltaPingMs;
+        }
+
+        private struct PendingShot
+        {
+            public float Realtime;
+            public float Distance;
+            public int PingMs;
+            public int DeltaPingMs;
         }
 
         private class WeaponData
         {
             public readonly List<ShotResult> History = new List<ShotResult>();
-            public readonly List<KeyValuePair<float, float>> PendingMisses = new List<KeyValuePair<float, float>>();
+            public readonly List<PendingShot> PendingMisses = new List<PendingShot>();
 
-            public void AddMiss(float distance)
+            public void AddMiss(float distance, int pingMs = 0, int deltaPingMs = 0)
             {
-                PendingMisses.Add(new KeyValuePair<float, float>(UnityEngine.Time.realtimeSinceStartup, distance));
+                PendingMisses.Add(new PendingShot
+                {
+                    Realtime = UnityEngine.Time.realtimeSinceStartup,
+                    Distance = distance,
+                    PingMs = pingMs,
+                    DeltaPingMs = deltaPingMs
+                });
                 if (PendingMisses.Count > 100) PendingMisses.RemoveAt(0);
             }
 
-            public void RegisterHit(float distance, int limit, float expiryTime)
+            public void RegisterHit(float distance, int limit, float expiryTime, int pingMs = 0, int deltaPingMs = 0)
             {
                 float now = UnityEngine.Time.realtimeSinceStartup;
                 int lastIndex = -1;
 
                 for (int i = PendingMisses.Count - 1; i >= 0; i--)
                 {
-                    if (now - PendingMisses[i].Key <= expiryTime)
+                    if (now - PendingMisses[i].Realtime <= expiryTime)
                     {
                         lastIndex = i;
                         break;
@@ -164,18 +198,24 @@ namespace Oxide.Plugins
                 {
                     for (int i = 0; i < lastIndex; i++)
                     {
-                        if (now - PendingMisses[i].Key <= expiryTime)
+                        if (now - PendingMisses[i].Realtime <= expiryTime)
                         {
-                            History.Add(new ShotResult { IsHit = false, Distance = PendingMisses[i].Value });
+                            History.Add(new ShotResult
+                            {
+                                IsHit = false,
+                                Distance = PendingMisses[i].Distance,
+                                PingMs = PendingMisses[i].PingMs,
+                                DeltaPingMs = PendingMisses[i].DeltaPingMs
+                            });
                         }
                     }
 
-                    History.Add(new ShotResult { IsHit = true, Distance = distance });
+                    History.Add(new ShotResult { IsHit = true, Distance = distance, PingMs = pingMs, DeltaPingMs = deltaPingMs });
                     PendingMisses.RemoveRange(0, lastIndex + 1);
                 }
                 else
                 {
-                    History.Add(new ShotResult { IsHit = true, Distance = distance });
+                    History.Add(new ShotResult { IsHit = true, Distance = distance, PingMs = pingMs, DeltaPingMs = deltaPingMs });
                 }
 
                 while (History.Count > limit) History.RemoveAt(0);
@@ -215,6 +255,72 @@ namespace Oxide.Plugins
             public int Attempt;
         }
 
+        private class PlayerPingStats
+        {
+            public double EMA;
+            public int Min = int.MaxValue;
+            public int Max;
+            public double Variance;
+            public long SampleCount;
+            public int LastPing;
+            public int AnomalyCount;
+
+            public double StdDev => SampleCount > 1 ? Math.Sqrt(Math.Abs(Variance)) : 0.0;
+            public bool HasBaseline => SampleCount >= PingBaselineSamples;
+
+            public bool IsAnomalous(int ping, double thresholdStdDev)
+            {
+                if (!HasBaseline) return false;
+                double sd = StdDev;
+                if (sd < 1.0) return false;
+                return Math.Abs(ping - EMA) > sd * thresholdStdDev;
+            }
+
+            public void Update(int ping)
+            {
+                if (SampleCount == 0)
+                {
+                    EMA = ping;
+                    Variance = 0;
+                }
+                else
+                {
+                    double prevEMA = EMA;
+                    EMA = EMA * 0.9 + ping * 0.1;
+                    // Welford online variance
+                    double delta = ping - prevEMA;
+                    double delta2 = ping - EMA;
+                    Variance = ((Variance * (SampleCount - 1)) + delta * delta2) / SampleCount;
+                }
+                if (ping < Min) Min = ping;
+                if (ping > Max) Max = ping;
+                LastPing = ping;
+                SampleCount++;
+            }
+        }
+
+        private class PlayerKDAStats
+        {
+            public int Kills;
+            public int Deaths;
+            public int Assists;
+
+            public float KDRatio => Deaths == 0 ? Kills : (float)Kills / Deaths;
+        }
+
+        private class ShotTelemetryEvent
+        {
+            public long TimestampMs;
+            public ulong PlayerId;
+            public string WeaponName;
+            public float Distance;
+            public bool Hit;
+            public int PingMs;
+            public int DeltaPingMs;
+            public float AccuracyInWindow;
+            public string EventType;
+        }
+
         void Init()
         {
             _runtimeName = DetectRuntimeName();
@@ -226,20 +332,31 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PermissionBypass, this);
 
             _storedData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_Stats");
+            _kdaData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_KDA");
             _debugLogPath = Path.Combine(_runtimeDataDirectory, DebugLogFileName);
             LoadStats();
+            LoadKDAStats();
             EnsureConfigDefaults();
             _webhookWindowStart = UnityEngine.Time.realtimeSinceStartup;
             _webhookPumpTimer = timer.Every(0.25f, PumpWebhookQueue);
+            _telemetryFlushTimer = timer.Every(TelemetryFlushIntervalSeconds, FlushTelemetryQueue);
 
             Puts($"Runtime detected: {_runtimeName} | Data directory: {_runtimeDataDirectory}");
         }
 
-        void OnServerSave() => SaveStats();
+        void OnServerSave()
+        {
+            SaveStats();
+            SaveKDAStats();
+        }
+
         void Unload()
         {
             _webhookPumpTimer?.Destroy();
+            _telemetryFlushTimer?.Destroy();
+            FlushTelemetryQueue();
             SaveStats();
+            SaveKDAStats();
         }
 
         private bool HasAccess(BasePlayer player, string permissionName)
@@ -295,9 +412,6 @@ namespace Oxide.Plugins
                     return string.Empty;
                 }
 
-                // Typical Rust layout:
-                // server/<identity>/oxide/data
-                // server/<identity>/carbon/data
                 string identityRoot = dataDir.Parent.Parent.FullName;
                 string carbonData = Path.Combine(identityRoot, "carbon", "data");
 
@@ -343,6 +457,40 @@ namespace Oxide.Plugins
                     if (weaponEntry.Value != null) wd.History.AddRange(weaponEntry.Value);
                     _playerStats[userId][weaponEntry.Key] = wd;
                 }
+            }
+        }
+
+        private void SaveKDAStats()
+        {
+            var data = new Dictionary<string, Dictionary<string, int>>();
+            foreach (var entry in _playerKDAStats)
+            {
+                data[entry.Key.ToString()] = new Dictionary<string, int>
+                {
+                    ["Kills"] = entry.Value.Kills,
+                    ["Deaths"] = entry.Value.Deaths,
+                    ["Assists"] = entry.Value.Assists
+                };
+            }
+            _kdaData.WriteObject(data);
+        }
+
+        private void LoadKDAStats()
+        {
+            var data = _kdaData.ReadObject<Dictionary<string, Dictionary<string, int>>>();
+            if (data == null) return;
+
+            foreach (var entry in data)
+            {
+                ulong userId;
+                if (!ulong.TryParse(entry.Key, out userId)) continue;
+
+                var kda = new PlayerKDAStats();
+                int v;
+                if (entry.Value.TryGetValue("Kills", out v)) kda.Kills = v;
+                if (entry.Value.TryGetValue("Deaths", out v)) kda.Deaths = v;
+                if (entry.Value.TryGetValue("Assists", out v)) kda.Assists = v;
+                _playerKDAStats[userId] = kda;
             }
         }
 
@@ -402,6 +550,21 @@ namespace Oxide.Plugins
                 ["EmitSuspicionEvents"] = true,
                 ["EmitPenaltyEvents"] = true
             };
+            Config["PingMonitoring"] = new Dictionary<string, object>
+            {
+                ["Enabled"] = true,
+                ["AnomalyThresholdStdDev"] = 2.5
+            };
+            Config["EventLogging"] = new Dictionary<string, object>
+            {
+                ["Enabled"] = true,
+                ["FlushIntervalSeconds"] = 300,
+                ["QueueMaxSize"] = 5000
+            };
+            Config["KDATracking"] = new Dictionary<string, object>
+            {
+                ["Enabled"] = true
+            };
             SaveConfig();
         }
 
@@ -409,17 +572,8 @@ namespace Oxide.Plugins
         {
             bool changed = false;
 
-            if (Config["DefaultLanguage"] == null)
-            {
-                Config["DefaultLanguage"] = DefaultLanguageFallback;
-                changed = true;
-            }
-
-            if (Config["DebugMode"] == null)
-            {
-                Config["DebugMode"] = false;
-                changed = true;
-            }
+            if (Config["DefaultLanguage"] == null) { Config["DefaultLanguage"] = DefaultLanguageFallback; changed = true; }
+            if (Config["DebugMode"] == null) { Config["DebugMode"] = false; changed = true; }
 
             var publicApi = Config["PublicApi"] as Dictionary<string, object>;
             if (publicApi == null)
@@ -435,37 +589,69 @@ namespace Oxide.Plugins
             }
             else
             {
-                if (!publicApi.ContainsKey("Enabled"))
-                {
-                    publicApi["Enabled"] = true;
-                    changed = true;
-                }
-
-                if (!publicApi.ContainsKey("ApiVersion") || string.IsNullOrWhiteSpace(publicApi["ApiVersion"].ToString()))
-                {
-                    publicApi["ApiVersion"] = PublicApiVersionCurrent;
-                    changed = true;
-                }
-
-                if (!publicApi.ContainsKey("EmitSuspicionEvents"))
-                {
-                    publicApi["EmitSuspicionEvents"] = true;
-                    changed = true;
-                }
-
-                if (!publicApi.ContainsKey("EmitPenaltyEvents"))
-                {
-                    publicApi["EmitPenaltyEvents"] = true;
-                    changed = true;
-                }
+                if (!publicApi.ContainsKey("Enabled")) { publicApi["Enabled"] = true; changed = true; }
+                if (!publicApi.ContainsKey("ApiVersion") || string.IsNullOrWhiteSpace(publicApi["ApiVersion"].ToString())) { publicApi["ApiVersion"] = PublicApiVersionCurrent; changed = true; }
+                if (!publicApi.ContainsKey("EmitSuspicionEvents")) { publicApi["EmitSuspicionEvents"] = true; changed = true; }
+                if (!publicApi.ContainsKey("EmitPenaltyEvents")) { publicApi["EmitPenaltyEvents"] = true; changed = true; }
             }
 
-            if (EnsureWebhookConfigDefaults())
+            if (EnsureWebhookConfigDefaults()) changed = true;
+
+            var pingCfg = Config["PingMonitoring"] as Dictionary<string, object>;
+            if (pingCfg == null)
             {
+                Config["PingMonitoring"] = new Dictionary<string, object> { ["Enabled"] = true, ["AnomalyThresholdStdDev"] = 2.5 };
+                changed = true;
+            }
+            else
+            {
+                if (!pingCfg.ContainsKey("Enabled")) { pingCfg["Enabled"] = true; changed = true; }
+                if (!pingCfg.ContainsKey("AnomalyThresholdStdDev")) { pingCfg["AnomalyThresholdStdDev"] = 2.5; changed = true; }
+            }
+
+            var eventCfg = Config["EventLogging"] as Dictionary<string, object>;
+            if (eventCfg == null)
+            {
+                Config["EventLogging"] = new Dictionary<string, object> { ["Enabled"] = true, ["FlushIntervalSeconds"] = 300, ["QueueMaxSize"] = 5000 };
+                changed = true;
+            }
+
+            var kdaCfg = Config["KDATracking"] as Dictionary<string, object>;
+            if (kdaCfg == null)
+            {
+                Config["KDATracking"] = new Dictionary<string, object> { ["Enabled"] = true };
                 changed = true;
             }
 
             if (changed) SaveConfig();
+        }
+
+        private bool IsPingMonitoringEnabled()
+        {
+            var cfg = Config["PingMonitoring"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("Enabled")) return true;
+            try { return Convert.ToBoolean(cfg["Enabled"]); } catch { return true; }
+        }
+
+        private double GetPingAnomalyThreshold()
+        {
+            var cfg = Config["PingMonitoring"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("AnomalyThresholdStdDev")) return 2.5;
+            try { return Convert.ToDouble(cfg["AnomalyThresholdStdDev"]); } catch { return 2.5; }
+        }
+
+        private bool IsKDATrackingEnabled()
+        {
+            var cfg = Config["KDATracking"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("Enabled")) return true;
+            try { return Convert.ToBoolean(cfg["Enabled"]); } catch { return true; }
+        }
+
+        private bool IsEventLoggingEnabled()
+        {
+            var cfg = Config["EventLogging"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("Enabled")) return true;
+            try { return Convert.ToBoolean(cfg["Enabled"]); } catch { return true; }
         }
 
         private string GetConfiguredDefaultLanguage()
@@ -487,14 +673,7 @@ namespace Oxide.Plugins
         private bool IsDebugEnabled()
         {
             if (Config["DebugMode"] == null) return false;
-            try
-            {
-                return Convert.ToBoolean(Config["DebugMode"]);
-            }
-            catch
-            {
-                return false;
-            }
+            try { return Convert.ToBoolean(Config["DebugMode"]); } catch { return false; }
         }
 
         private void DebugLog(string message)
@@ -519,35 +698,22 @@ namespace Oxide.Plugins
             if (string.IsNullOrWhiteSpace(value)) return false;
 
             string normalized = value.Trim().ToLowerInvariant();
-            if (normalized == "on" || normalized == "1" || normalized == "true")
-            {
-                enabled = true;
-                return true;
-            }
-
-            if (normalized == "off" || normalized == "0" || normalized == "false")
-            {
-                enabled = false;
-                return true;
-            }
-
+            if (normalized == "on" || normalized == "1" || normalized == "true") { enabled = true; return true; }
+            if (normalized == "off" || normalized == "0" || normalized == "false") { enabled = false; return true; }
             return false;
         }
 
         private List<string> GetSupportedLanguageCodes()
         {
             var supported = new List<string>();
-
             if (MessagesEn.Count > 0) supported.Add("en");
             if (MessagesHu.Count > 0 && !supported.Contains("hu")) supported.Add("hu");
-
             return supported;
         }
 
         private bool IsSupportedLanguage(string code)
         {
-            var supported = GetSupportedLanguageCodes();
-            return supported.Contains(NormalizeLanguageCode(code));
+            return GetSupportedLanguageCodes().Contains(NormalizeLanguageCode(code));
         }
 
         private Dictionary<string, object> GetPublicApiConfig()
@@ -565,7 +731,6 @@ namespace Oxide.Plugins
                 Config["PublicApi"] = config;
                 SaveConfig();
             }
-
             return config;
         }
 
@@ -573,52 +738,27 @@ namespace Oxide.Plugins
         {
             var config = GetPublicApiConfig();
             if (!config.ContainsKey("Enabled")) return true;
-
-            try
-            {
-                return Convert.ToBoolean(config["Enabled"]);
-            }
-            catch
-            {
-                return true;
-            }
+            try { return Convert.ToBoolean(config["Enabled"]); } catch { return true; }
         }
 
         private bool ShouldEmitSuspicionEvents()
         {
             var config = GetPublicApiConfig();
             if (!config.ContainsKey("EmitSuspicionEvents")) return true;
-
-            try
-            {
-                return Convert.ToBoolean(config["EmitSuspicionEvents"]);
-            }
-            catch
-            {
-                return true;
-            }
+            try { return Convert.ToBoolean(config["EmitSuspicionEvents"]); } catch { return true; }
         }
 
         private bool ShouldEmitPenaltyEvents()
         {
             var config = GetPublicApiConfig();
             if (!config.ContainsKey("EmitPenaltyEvents")) return true;
-
-            try
-            {
-                return Convert.ToBoolean(config["EmitPenaltyEvents"]);
-            }
-            catch
-            {
-                return true;
-            }
+            try { return Convert.ToBoolean(config["EmitPenaltyEvents"]); } catch { return true; }
         }
 
         private string GetConfiguredApiVersion()
         {
             var config = GetPublicApiConfig();
             if (!config.ContainsKey("ApiVersion")) return PublicApiVersionCurrent;
-
             var value = config["ApiVersion"] != null ? config["ApiVersion"].ToString().Trim() : string.Empty;
             return string.IsNullOrWhiteSpace(value) ? PublicApiVersionCurrent : value;
         }
@@ -627,78 +767,19 @@ namespace Oxide.Plugins
         {
             bool changed = false;
             var webhook = Config["Webhook"] as Dictionary<string, object>;
-            if (webhook == null)
-            {
-                webhook = new Dictionary<string, object>();
-                Config["Webhook"] = webhook;
-                changed = true;
-            }
+            if (webhook == null) { webhook = new Dictionary<string, object>(); Config["Webhook"] = webhook; changed = true; }
 
-            if (!webhook.ContainsKey("Enabled"))
-            {
-                webhook["Enabled"] = false;
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("Endpoint"))
-            {
-                webhook["Endpoint"] = string.Empty;
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("AuthToken"))
-            {
-                webhook["AuthToken"] = string.Empty;
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("AuthHeader"))
-            {
-                webhook["AuthHeader"] = "Authorization";
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("MaxRetries"))
-            {
-                webhook["MaxRetries"] = 3;
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("BaseBackoffSeconds"))
-            {
-                webhook["BaseBackoffSeconds"] = 1.5;
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("MaxBackoffSeconds"))
-            {
-                webhook["MaxBackoffSeconds"] = 20.0;
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("RateLimitPerSecond"))
-            {
-                webhook["RateLimitPerSecond"] = 2;
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("QueueMaxSize"))
-            {
-                webhook["QueueMaxSize"] = 500;
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("EmitSuspicionEvents"))
-            {
-                webhook["EmitSuspicionEvents"] = true;
-                changed = true;
-            }
-
-            if (!webhook.ContainsKey("EmitPenaltyEvents"))
-            {
-                webhook["EmitPenaltyEvents"] = true;
-                changed = true;
-            }
+            if (!webhook.ContainsKey("Enabled")) { webhook["Enabled"] = false; changed = true; }
+            if (!webhook.ContainsKey("Endpoint")) { webhook["Endpoint"] = string.Empty; changed = true; }
+            if (!webhook.ContainsKey("AuthToken")) { webhook["AuthToken"] = string.Empty; changed = true; }
+            if (!webhook.ContainsKey("AuthHeader")) { webhook["AuthHeader"] = "Authorization"; changed = true; }
+            if (!webhook.ContainsKey("MaxRetries")) { webhook["MaxRetries"] = 3; changed = true; }
+            if (!webhook.ContainsKey("BaseBackoffSeconds")) { webhook["BaseBackoffSeconds"] = 1.5; changed = true; }
+            if (!webhook.ContainsKey("MaxBackoffSeconds")) { webhook["MaxBackoffSeconds"] = 20.0; changed = true; }
+            if (!webhook.ContainsKey("RateLimitPerSecond")) { webhook["RateLimitPerSecond"] = 2; changed = true; }
+            if (!webhook.ContainsKey("QueueMaxSize")) { webhook["QueueMaxSize"] = 500; changed = true; }
+            if (!webhook.ContainsKey("EmitSuspicionEvents")) { webhook["EmitSuspicionEvents"] = true; changed = true; }
+            if (!webhook.ContainsKey("EmitPenaltyEvents")) { webhook["EmitPenaltyEvents"] = true; changed = true; }
 
             return changed;
         }
@@ -712,44 +793,21 @@ namespace Oxide.Plugins
         private bool IsWebhookEnabled()
         {
             var cfg = GetWebhookConfig();
-            try
-            {
-                return cfg != null && cfg.ContainsKey("Enabled") && Convert.ToBoolean(cfg["Enabled"]);
-            }
-            catch
-            {
-                return false;
-            }
+            try { return cfg != null && cfg.ContainsKey("Enabled") && Convert.ToBoolean(cfg["Enabled"]); } catch { return false; }
         }
 
         private bool ShouldEmitWebhookSuspicionEvents()
         {
             var cfg = GetWebhookConfig();
             if (cfg == null || !cfg.ContainsKey("EmitSuspicionEvents")) return true;
-
-            try
-            {
-                return Convert.ToBoolean(cfg["EmitSuspicionEvents"]);
-            }
-            catch
-            {
-                return true;
-            }
+            try { return Convert.ToBoolean(cfg["EmitSuspicionEvents"]); } catch { return true; }
         }
 
         private bool ShouldEmitWebhookPenaltyEvents()
         {
             var cfg = GetWebhookConfig();
             if (cfg == null || !cfg.ContainsKey("EmitPenaltyEvents")) return true;
-
-            try
-            {
-                return Convert.ToBoolean(cfg["EmitPenaltyEvents"]);
-            }
-            catch
-            {
-                return true;
-            }
+            try { return Convert.ToBoolean(cfg["EmitPenaltyEvents"]); } catch { return true; }
         }
 
         private string GetWebhookEndpoint()
@@ -778,75 +836,35 @@ namespace Oxide.Plugins
         {
             var cfg = GetWebhookConfig();
             if (cfg == null || !cfg.ContainsKey("MaxRetries")) return 3;
-
-            try
-            {
-                return Mathf.Clamp(Convert.ToInt32(cfg["MaxRetries"]), 0, 10);
-            }
-            catch
-            {
-                return 3;
-            }
+            try { return Mathf.Clamp(Convert.ToInt32(cfg["MaxRetries"]), 0, 10); } catch { return 3; }
         }
 
         private float GetWebhookBaseBackoffSeconds()
         {
             var cfg = GetWebhookConfig();
             if (cfg == null || !cfg.ContainsKey("BaseBackoffSeconds")) return 1.5f;
-
-            try
-            {
-                return Mathf.Clamp(Convert.ToSingle(cfg["BaseBackoffSeconds"]), 0.25f, 60f);
-            }
-            catch
-            {
-                return 1.5f;
-            }
+            try { return Mathf.Clamp(Convert.ToSingle(cfg["BaseBackoffSeconds"]), 0.25f, 60f); } catch { return 1.5f; }
         }
 
         private float GetWebhookMaxBackoffSeconds()
         {
             var cfg = GetWebhookConfig();
             if (cfg == null || !cfg.ContainsKey("MaxBackoffSeconds")) return 20f;
-
-            try
-            {
-                return Mathf.Clamp(Convert.ToSingle(cfg["MaxBackoffSeconds"]), 1f, 300f);
-            }
-            catch
-            {
-                return 20f;
-            }
+            try { return Mathf.Clamp(Convert.ToSingle(cfg["MaxBackoffSeconds"]), 1f, 300f); } catch { return 20f; }
         }
 
         private int GetWebhookRateLimitPerSecond()
         {
             var cfg = GetWebhookConfig();
             if (cfg == null || !cfg.ContainsKey("RateLimitPerSecond")) return 2;
-
-            try
-            {
-                return Mathf.Clamp(Convert.ToInt32(cfg["RateLimitPerSecond"]), 1, 100);
-            }
-            catch
-            {
-                return 2;
-            }
+            try { return Mathf.Clamp(Convert.ToInt32(cfg["RateLimitPerSecond"]), 1, 100); } catch { return 2; }
         }
 
         private int GetWebhookQueueMaxSize()
         {
             var cfg = GetWebhookConfig();
             if (cfg == null || !cfg.ContainsKey("QueueMaxSize")) return 500;
-
-            try
-            {
-                return Mathf.Clamp(Convert.ToInt32(cfg["QueueMaxSize"]), 10, 5000);
-            }
-            catch
-            {
-                return 500;
-            }
+            try { return Mathf.Clamp(Convert.ToInt32(cfg["QueueMaxSize"]), 10, 5000); } catch { return 500; }
         }
 
         private bool CanSendWebhookNow(out float delaySeconds)
@@ -869,34 +887,18 @@ namespace Oxide.Plugins
         private void EnqueueWebhookEvent(string eventName, Dictionary<string, object> payload)
         {
             if (!IsWebhookEnabled()) return;
-
             if (eventName == "suspicion" && !ShouldEmitWebhookSuspicionEvents()) return;
             if (eventName == "penalty_applied" && !ShouldEmitWebhookPenaltyEvents()) return;
 
             string endpoint = GetWebhookEndpoint();
-            if (string.IsNullOrWhiteSpace(endpoint))
-            {
-                DebugLog($"Webhook skipped: missing endpoint for event '{eventName}'.");
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(endpoint)) { DebugLog($"Webhook skipped: missing endpoint for event '{eventName}'."); return; }
 
-            var envelopePayload = new Dictionary<string, object>(payload)
-            {
-                ["eventType"] = eventName
-            };
+            var envelopePayload = new Dictionary<string, object>(payload) { ["eventType"] = eventName };
 
-            _webhookQueue.Enqueue(new WebhookEnvelope
-            {
-                EventName = eventName,
-                Payload = envelopePayload,
-                Attempt = 0
-            });
+            _webhookQueue.Enqueue(new WebhookEnvelope { EventName = eventName, Payload = envelopePayload, Attempt = 0 });
 
             int maxSize = GetWebhookQueueMaxSize();
-            while (_webhookQueue.Count > maxSize)
-            {
-                _webhookQueue.Dequeue();
-            }
+            while (_webhookQueue.Count > maxSize) _webhookQueue.Dequeue();
 
             PumpWebhookQueue();
         }
@@ -908,11 +910,7 @@ namespace Oxide.Plugins
             if (!IsWebhookEnabled()) return;
 
             float waitDelay;
-            if (!CanSendWebhookNow(out waitDelay))
-            {
-                timer.Once(waitDelay + 0.01f, PumpWebhookQueue);
-                return;
-            }
+            if (!CanSendWebhookNow(out waitDelay)) { timer.Once(waitDelay + 0.01f, PumpWebhookQueue); return; }
 
             var next = _webhookQueue.Dequeue();
             SendWebhook(next);
@@ -924,26 +922,12 @@ namespace Oxide.Plugins
             if (string.IsNullOrWhiteSpace(endpoint)) return;
 
             string payloadJson;
-            try
-            {
-                payloadJson = BuildWebhookRequestJson(envelope, endpoint);
-            }
-            catch (Exception ex)
-            {
-                DebugLog($"Webhook serialization failed for {envelope.EventName}: {ex.Message}");
-                return;
-            }
+            try { payloadJson = BuildWebhookRequestJson(envelope, endpoint); }
+            catch (Exception ex) { DebugLog($"Webhook serialization failed for {envelope.EventName}: {ex.Message}"); return; }
 
-            var headers = new Dictionary<string, string>
-            {
-                ["Content-Type"] = "application/json"
-            };
-
+            var headers = new Dictionary<string, string> { ["Content-Type"] = "application/json" };
             string token = GetWebhookAuthToken();
-            if (!string.IsNullOrWhiteSpace(token))
-            {
-                headers[GetWebhookAuthHeader()] = token;
-            }
+            if (!string.IsNullOrWhiteSpace(token)) headers[GetWebhookAuthHeader()] = token;
 
             _webhookRequestInFlight = true;
             _webhookSentInWindow++;
@@ -952,13 +936,7 @@ namespace Oxide.Plugins
                 webrequest.Enqueue(endpoint, payloadJson, (code, response) =>
                 {
                     _webhookRequestInFlight = false;
-                    if (code >= 200 && code < 300)
-                    {
-                        DebugLog($"Webhook sent: event={envelope.EventName}, code={code}, attempt={envelope.Attempt + 1}");
-                        PumpWebhookQueue();
-                        return;
-                    }
-
+                    if (code >= 200 && code < 300) { DebugLog($"Webhook sent: event={envelope.EventName}, code={code}"); PumpWebhookQueue(); return; }
                     HandleWebhookFailure(envelope, code, response);
                     PumpWebhookQueue();
                 }, this, RequestMethod.POST, headers);
@@ -974,33 +952,21 @@ namespace Oxide.Plugins
         private void HandleWebhookFailure(WebhookEnvelope envelope, int code, string response)
         {
             int maxRetries = GetWebhookMaxRetries();
-            if (envelope.Attempt >= maxRetries)
-            {
-                DebugLog($"Webhook dropped after retries: event={envelope.EventName}, code={code}, response={response}");
-                return;
-            }
+            if (envelope.Attempt >= maxRetries) { DebugLog($"Webhook dropped after retries: event={envelope.EventName}, code={code}"); return; }
 
             float baseDelay = GetWebhookBaseBackoffSeconds();
             float maxDelay = Mathf.Max(baseDelay, GetWebhookMaxBackoffSeconds());
             float delay = Mathf.Min(maxDelay, baseDelay * Mathf.Pow(2f, envelope.Attempt));
 
             envelope.Attempt++;
-            DebugLog($"Webhook retry scheduled: event={envelope.EventName}, attempt={envelope.Attempt}, delay={delay:F2}s, code={code}");
+            DebugLog($"Webhook retry scheduled: event={envelope.EventName}, attempt={envelope.Attempt}, delay={delay:F2}s");
 
-            timer.Once(delay, () =>
-            {
-                _webhookQueue.Enqueue(envelope);
-                PumpWebhookQueue();
-            });
+            timer.Once(delay, () => { _webhookQueue.Enqueue(envelope); PumpWebhookQueue(); });
         }
 
         private string BuildWebhookRequestJson(WebhookEnvelope envelope, string endpoint)
         {
-            if (IsDiscordWebhookEndpoint(endpoint))
-            {
-                return BuildDiscordWebhookJson(envelope);
-            }
-
+            if (IsDiscordWebhookEndpoint(endpoint)) return BuildDiscordWebhookJson(envelope);
             return JsonConvert.SerializeObject(envelope.Payload);
         }
 
@@ -1039,13 +1005,7 @@ namespace Oxide.Plugins
                 content = "[MogyAC] Event: " + envelope.EventName;
             }
 
-            var discordPayload = new Dictionary<string, object>
-            {
-                ["username"] = "MogyAntiCheat",
-                ["content"] = content
-            };
-
-            return JsonConvert.SerializeObject(discordPayload);
+            return JsonConvert.SerializeObject(new Dictionary<string, object> { ["username"] = "MogyAntiCheat", ["content"] = content });
         }
 
         private object GetPayloadValue(Dictionary<string, object> payload, string key)
@@ -1057,14 +1017,7 @@ namespace Oxide.Plugins
         private float GetPayloadFloat(Dictionary<string, object> payload, string key)
         {
             if (payload == null || !payload.ContainsKey(key) || payload[key] == null) return 0f;
-            try
-            {
-                return Convert.ToSingle(payload[key]);
-            }
-            catch
-            {
-                return 0f;
-            }
+            try { return Convert.ToSingle(payload[key]); } catch { return 0f; }
         }
 
         private string GetMessageFromPack(Dictionary<string, string> pack, string key)
@@ -1083,14 +1036,9 @@ namespace Oxide.Plugins
                 var messages = lang.GetMessages(normalized, this);
                 string fromLangApi;
                 if (messages != null && messages.TryGetValue(key, out fromLangApi) && !string.IsNullOrEmpty(fromLangApi))
-                {
                     return fromLangApi;
-                }
             }
-            catch
-            {
-                // Continue to in-code fallback dictionaries.
-            }
+            catch { }
 
             if (normalized == "hu") return GetMessageFromPack(MessagesHu, key);
             if (normalized == "en") return GetMessageFromPack(MessagesEn, key);
@@ -1102,33 +1050,74 @@ namespace Oxide.Plugins
             string cfgLang = GetConfiguredDefaultLanguage();
             string configured = GetMessageForLanguage(cfgLang, key);
             if (!string.IsNullOrEmpty(configured)) return configured;
-
-            if (cfgLang == "hu")
-            {
-                return GetMessageForLanguage("en", key);
-            }
-
+            if (cfgLang == "hu") return GetMessageForLanguage("en", key);
             return GetMessageForLanguage("hu", key);
         }
 
         private string Msg(BasePlayer player, string key, params object[] args)
         {
             string message = GetConfiguredFallbackMessage(key);
-
-            if (string.IsNullOrEmpty(message))
-            {
-                message = "[MogyAC] Missing lang key: " + key;
-            }
-
+            if (string.IsNullOrEmpty(message)) message = "[MogyAC] Missing lang key: " + key;
             if (args == null || args.Length == 0) return message;
+            try { return string.Format(message, args); } catch { return message; }
+        }
+
+        private int GetPlayerPing(BasePlayer player)
+        {
+            try { return player?.net?.connection?.averagePing ?? 0; } catch { return 0; }
+        }
+
+        private PlayerPingStats GetOrCreatePingStats(ulong playerId)
+        {
+            PlayerPingStats ps;
+            if (!_playerPingStats.TryGetValue(playerId, out ps))
+            {
+                ps = new PlayerPingStats();
+                _playerPingStats[playerId] = ps;
+            }
+            return ps;
+        }
+
+        private PlayerKDAStats GetOrCreateKDA(ulong playerId)
+        {
+            PlayerKDAStats kda;
+            if (!_playerKDAStats.TryGetValue(playerId, out kda))
+            {
+                kda = new PlayerKDAStats();
+                _playerKDAStats[playerId] = kda;
+            }
+            return kda;
+        }
+
+        private void EnqueueTelemetry(ShotTelemetryEvent ev)
+        {
+            if (!IsEventLoggingEnabled()) return;
+            _telemetryQueue.Add(ev);
+            if (_telemetryQueue.Count >= TelemetryQueueMaxSize) FlushTelemetryQueue();
+        }
+
+        private void FlushTelemetryQueue()
+        {
+            if (_telemetryQueue.Count == 0) return;
+
+            var batch = _telemetryQueue.ToList();
+            _telemetryQueue.Clear();
 
             try
             {
-                return string.Format(message, args);
+                string logFile = Path.Combine(_runtimeDataDirectory, $"MogyAntiCheat_Events_{DateTime.UtcNow:yyyyMMdd}.log");
+                var batchPayload = new Dictionary<string, object>
+                {
+                    ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    ["count"] = batch.Count,
+                    ["events"] = batch
+                };
+                File.AppendAllText(logFile, JsonConvert.SerializeObject(batchPayload) + Environment.NewLine);
+                DebugLog($"Telemetry flushed: {batch.Count} events");
             }
-            catch
+            catch (Exception ex)
             {
-                return message;
+                DebugLog($"Telemetry flush failed: {ex.Message}");
             }
         }
 
@@ -1137,6 +1126,25 @@ namespace Oxide.Plugins
             if (player == null || weapon == null || player.IsNpc) return;
 
             string wName = weapon.ShortPrefabName.Replace(".entity", "");
+
+            int ping = GetPlayerPing(player);
+            PlayerPingStats pingStats = GetOrCreatePingStats(player.userID);
+            int deltaPing = pingStats.SampleCount > 0 ? ping - pingStats.LastPing : 0;
+
+            if (IsPingMonitoringEnabled())
+            {
+                bool wasAnomaly = pingStats.IsAnomalous(ping, GetPingAnomalyThreshold());
+                pingStats.Update(ping);
+                if (wasAnomaly)
+                {
+                    pingStats.AnomalyCount++;
+                    DebugLog($"Ping anomaly: player={player.displayName} ({player.userID}), ping={ping}ms, baseline={pingStats.EMA:F0}ms ±{pingStats.StdDev:F1}ms");
+                }
+            }
+            else
+            {
+                pingStats.Update(ping);
+            }
 
             Dictionary<string, WeaponData> byWeapon;
             if (!_playerStats.TryGetValue(player.userID, out byWeapon))
@@ -1152,7 +1160,20 @@ namespace Oxide.Plugins
                 byWeapon[wName] = weaponData;
             }
 
-            weaponData.AddMiss(0f);
+            weaponData.AddMiss(0f, ping, deltaPing);
+
+            EnqueueTelemetry(new ShotTelemetryEvent
+            {
+                TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                PlayerId = player.userID,
+                WeaponName = wName,
+                Distance = 0f,
+                Hit = false,
+                PingMs = ping,
+                DeltaPingMs = deltaPing,
+                AccuracyInWindow = weaponData.GetAccuracy(),
+                EventType = "shot"
+            });
         }
 
         void OnEntityTakeDamage(BaseEntity entity, HitInfo info)
@@ -1189,10 +1210,7 @@ namespace Oxide.Plugins
             if (cfgKey != null)
             {
                 var entry = weaponsCfg[cfgKey] as Dictionary<string, object>;
-                if (entry != null && entry.ContainsKey("SampleCount"))
-                {
-                    limit = Convert.ToInt32(entry["SampleCount"]);
-                }
+                if (entry != null && entry.ContainsKey("SampleCount")) limit = Convert.ToInt32(entry["SampleCount"]);
             }
 
             Dictionary<string, WeaponData> byWeapon;
@@ -1209,7 +1227,24 @@ namespace Oxide.Plugins
                 byWeapon[wName] = weaponData;
             }
 
-            weaponData.RegisterHit(dist, limit, expiry);
+            int ping = GetPlayerPing(attacker);
+            PlayerPingStats pingStats = GetOrCreatePingStats(attacker.userID);
+            int deltaPing = pingStats.SampleCount > 0 ? ping - pingStats.LastPing : 0;
+
+            weaponData.RegisterHit(dist, limit, expiry, ping, deltaPing);
+
+            EnqueueTelemetry(new ShotTelemetryEvent
+            {
+                TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                PlayerId = attacker.userID,
+                WeaponName = wName,
+                Distance = dist,
+                Hit = true,
+                PingMs = ping,
+                DeltaPingMs = deltaPing,
+                AccuracyInWindow = weaponData.GetAccuracy(),
+                EventType = "hit"
+            });
 
             var evaluation = EvaluateWeapon(wName, weaponData);
             ProcessSuspicionTransition(attacker, wName, evaluation);
@@ -1218,7 +1253,7 @@ namespace Oxide.Plugins
             bool shouldApplyNerfToAttacker = !HasBypass(attacker) || debugMode;
             if (debugMode)
             {
-                DebugLog($"Damage check: attacker={attacker.displayName} ({attacker.userID}), target={entity.ShortPrefabName}, weapon={wName}, acc={evaluation.Accuracy:P2}, max={evaluation.MaxAccuracy:P2}, globalNerf={globalNerf:P2}, applyNerf={shouldApplyNerfToAttacker}");
+                DebugLog($"Damage check: attacker={attacker.displayName} ({attacker.userID}), weapon={wName}, acc={evaluation.Accuracy:P2}, max={evaluation.MaxAccuracy:P2}, ping={ping}ms, globalNerf={globalNerf:P2}");
             }
 
             if (shouldApplyNerfToAttacker && globalNerf < 1.0f)
@@ -1226,13 +1261,52 @@ namespace Oxide.Plugins
                 float originalDamage = info.damageTypes.Total();
                 info.damageTypes.ScaleAll(globalNerf);
                 float scaledDamage = info.damageTypes.Total();
-                EmitPenaltyEvent(attacker, targetPlayer, wName, globalNerf, originalDamage, scaledDamage);
+                EmitPenaltyEvent(attacker, targetPlayer, wName, globalNerf, originalDamage, scaledDamage, ping);
             }
             else if (debugMode)
             {
                 if (!shouldApplyNerfToAttacker) DebugLog("Nerf skipped: attacker exemption active.");
                 else DebugLog("Nerf skipped: global nerf is 100%.");
             }
+        }
+
+        void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
+        {
+            if (!IsKDATrackingEnabled()) return;
+            if (entity == null) return;
+
+            BasePlayer victim = entity as BasePlayer;
+            if (victim == null || victim.IsNpc || !victim.userID.IsSteamId()) return;
+
+            GetOrCreateKDA(victim.userID).Deaths++;
+
+            EnqueueTelemetry(new ShotTelemetryEvent
+            {
+                TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                PlayerId = victim.userID,
+                EventType = "death"
+            });
+
+            if (info?.InitiatorPlayer == null) return;
+            BasePlayer attacker = info.InitiatorPlayer;
+            if (attacker.IsNpc || !attacker.userID.IsSteamId() || attacker.userID == victim.userID) return;
+
+            GetOrCreateKDA(attacker.userID).Kills++;
+
+            string wName = string.Empty;
+            var w = attacker.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
+            if (w != null) wName = w.ShortPrefabName.Replace(".entity", "");
+
+            EnqueueTelemetry(new ShotTelemetryEvent
+            {
+                TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                PlayerId = attacker.userID,
+                WeaponName = wName,
+                Distance = Vector3.Distance(attacker.transform.position, victim.transform.position),
+                Hit = true,
+                PingMs = GetPlayerPing(attacker),
+                EventType = "kill"
+            });
         }
 
         private WeaponEvaluation EvaluateWeapon(string weaponName, WeaponData data)
@@ -1307,12 +1381,15 @@ namespace Oxide.Plugins
             if (suspiciousWeapons.Contains(weaponName)) return;
 
             suspiciousWeapons.Add(weaponName);
-            DebugLog($"Suspicion entered: player={attacker.displayName} ({attacker.userID}), weapon={weaponName}, accuracy={evaluation.Accuracy:P2}, nerf={evaluation.SuggestedNerf:P2}");
+            DebugLog($"Suspicion entered: player={attacker.displayName} ({attacker.userID}), weapon={weaponName}, accuracy={evaluation.Accuracy:P2}");
             EmitSuspicionEvent(attacker.userID, weaponName, evaluation);
         }
 
         private void EmitSuspicionEvent(ulong playerId, string weaponName, WeaponEvaluation evaluation)
         {
+            PlayerPingStats pingStats;
+            _playerPingStats.TryGetValue(playerId, out pingStats);
+
             var payload = new Dictionary<string, object>
             {
                 ["apiVersion"] = GetConfiguredApiVersion(),
@@ -1323,19 +1400,23 @@ namespace Oxide.Plugins
                 ["weightedScore"] = evaluation.WeightedScore,
                 ["suggestedNerf"] = evaluation.SuggestedNerf,
                 ["sampleCount"] = evaluation.SampleCount,
+                ["pingBaselineAvg"] = pingStats != null ? pingStats.EMA : 0.0,
+                ["pingBaselineStdDev"] = pingStats != null ? pingStats.StdDev : 0.0,
                 ["timestampUtc"] = DateTime.UtcNow.ToString("o")
             };
 
             if (IsPublicApiEnabled() && ShouldEmitSuspicionEvents())
-            {
                 Interface.CallHook("OnMogyAcSuspicion", payload);
-            }
+
             EnqueueWebhookEvent("suspicion", payload);
         }
 
-        private void EmitPenaltyEvent(BasePlayer attacker, BasePlayer target, string weaponName, float appliedMultiplier, float originalDamage, float scaledDamage)
+        private void EmitPenaltyEvent(BasePlayer attacker, BasePlayer target, string weaponName, float appliedMultiplier, float originalDamage, float scaledDamage, int pingAtEvent = 0)
         {
             if (attacker == null) return;
+
+            PlayerPingStats pingStats;
+            _playerPingStats.TryGetValue(attacker.userID, out pingStats);
 
             var payload = new Dictionary<string, object>
             {
@@ -1346,23 +1427,24 @@ namespace Oxide.Plugins
                 ["appliedMultiplier"] = appliedMultiplier,
                 ["originalDamage"] = originalDamage,
                 ["scaledDamage"] = scaledDamage,
+                ["pingAtEvent"] = pingAtEvent,
+                ["pingBaselineAvg"] = pingStats != null ? pingStats.EMA : 0.0,
+                ["pingAnomaly"] = pingStats != null && pingStats.IsAnomalous(pingAtEvent, GetPingAnomalyThreshold()),
                 ["timestampUtc"] = DateTime.UtcNow.ToString("o")
             };
 
-            DebugLog($"Penalty applied: attacker={attacker.displayName} ({attacker.userID}), target={(target != null ? target.displayName : "n/a")}, weapon={weaponName}, multiplier={appliedMultiplier:F2}, damage={originalDamage:F1}->{scaledDamage:F1}");
+            DebugLog($"Penalty applied: attacker={attacker.displayName} ({attacker.userID}), weapon={weaponName}, mult={appliedMultiplier:F2}, dmg={originalDamage:F1}->{scaledDamage:F1}, ping={pingAtEvent}ms");
+
             if (IsPublicApiEnabled() && ShouldEmitPenaltyEvents())
-            {
                 Interface.CallHook("OnMogyAcPenaltyApplied", payload);
-            }
+
             EnqueueWebhookEvent("penalty_applied", payload);
         }
 
         private string ResolveWeaponNameFromArgument(BasePlayer player, string weaponArg)
         {
             if (!string.Equals(weaponArg, "active", StringComparison.OrdinalIgnoreCase))
-            {
                 return weaponArg.Trim();
-            }
 
             var activeWeapon = player.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
             return activeWeapon == null ? string.Empty : activeWeapon.ShortPrefabName.Replace(".entity", "");
@@ -1389,28 +1471,18 @@ namespace Oxide.Plugins
             normalizedValue = null;
 
             if (string.IsNullOrWhiteSpace(weaponName) || string.IsNullOrWhiteSpace(fieldArg) || string.IsNullOrWhiteSpace(valueArg))
-            {
                 return false;
-            }
 
             string field = fieldArg.Trim().ToLowerInvariant();
             var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
-            if (weaponsCfg == null)
-            {
-                weaponsCfg = new Dictionary<string, object>();
-                Config["Weapons"] = weaponsCfg;
-            }
+            if (weaponsCfg == null) { weaponsCfg = new Dictionary<string, object>(); Config["Weapons"] = weaponsCfg; }
 
             Dictionary<string, object> weaponCfg;
             string existingKey = ResolveWeaponConfigKey(weaponsCfg, weaponName);
             if (existingKey != null)
             {
                 weaponCfg = weaponsCfg[existingKey] as Dictionary<string, object>;
-                if (weaponCfg == null)
-                {
-                    weaponCfg = new Dictionary<string, object>();
-                    weaponsCfg[existingKey] = weaponCfg;
-                }
+                if (weaponCfg == null) { weaponCfg = new Dictionary<string, object>(); weaponsCfg[existingKey] = weaponCfg; }
             }
             else
             {
@@ -1476,28 +1548,20 @@ namespace Oxide.Plugins
             if (!_playerStats.TryGetValue(userId, out byWeapon)) return 1.0f;
 
             float lowestNerf = 1.0f;
-
             foreach (var weaponEntry in byWeapon)
             {
                 var evaluation = EvaluateWeapon(weaponEntry.Key, weaponEntry.Value);
                 if (evaluation.SuggestedNerf < lowestNerf) lowestNerf = evaluation.SuggestedNerf;
             }
-
             return Mathf.Clamp(lowestNerf, 0f, 1.0f);
         }
 
-        object GetApiVersion()
-        {
-            return GetConfiguredApiVersion();
-        }
+        object GetApiVersion() => GetConfiguredApiVersion();
 
         object GetPlayerAcState(ulong playerId)
         {
             Dictionary<string, WeaponData> byWeapon;
-            if (!_playerStats.TryGetValue(playerId, out byWeapon))
-            {
-                return null;
-            }
+            if (!_playerStats.TryGetValue(playerId, out byWeapon)) return null;
 
             var weapons = new List<Dictionary<string, object>>();
             foreach (var weaponEntry in byWeapon)
@@ -1516,31 +1580,66 @@ namespace Oxide.Plugins
                 });
             }
 
+            PlayerPingStats pingStats;
+            _playerPingStats.TryGetValue(playerId, out pingStats);
+
+            PlayerKDAStats kda;
+            _playerKDAStats.TryGetValue(playerId, out kda);
+
             return new Dictionary<string, object>
             {
                 ["apiVersion"] = GetConfiguredApiVersion(),
                 ["playerId"] = playerId,
                 ["globalNerf"] = GetLowestNerf(playerId),
                 ["weapons"] = weapons,
+                ["pingAvg"] = pingStats != null ? pingStats.EMA : 0.0,
+                ["pingStdDev"] = pingStats != null ? pingStats.StdDev : 0.0,
+                ["pingAnomalyCount"] = pingStats != null ? pingStats.AnomalyCount : 0,
+                ["kills"] = kda != null ? kda.Kills : 0,
+                ["deaths"] = kda != null ? kda.Deaths : 0,
+                ["assists"] = kda != null ? kda.Assists : 0,
                 ["timestampUtc"] = DateTime.UtcNow.ToString("o")
+            };
+        }
+
+        object GetPlayerPingStats(ulong playerId)
+        {
+            PlayerPingStats ps;
+            if (!_playerPingStats.TryGetValue(playerId, out ps) || ps.SampleCount == 0) return null;
+
+            return new Dictionary<string, object>
+            {
+                ["avg"] = ps.EMA,
+                ["min"] = ps.Min == int.MaxValue ? 0 : ps.Min,
+                ["max"] = ps.Max,
+                ["stddev"] = ps.StdDev,
+                ["sampleCount"] = ps.SampleCount,
+                ["hasBaseline"] = ps.HasBaseline,
+                ["anomalyCount"] = ps.AnomalyCount
+            };
+        }
+
+        object GetPlayerKDAStats(ulong playerId)
+        {
+            PlayerKDAStats kda;
+            if (!_playerKDAStats.TryGetValue(playerId, out kda)) return null;
+
+            return new Dictionary<string, object>
+            {
+                ["kills"] = kda.Kills,
+                ["deaths"] = kda.Deaths,
+                ["assists"] = kda.Assists,
+                ["kdaRatio"] = kda.KDRatio
             };
         }
 
         [ChatCommand("ac-check")]
         void CmdChatCheck(BasePlayer player, string command, string[] args)
         {
-            if (!HasAccess(player, PermissionAdmin))
-            {
-                SendReply(player, Msg(player, "NoPermission"));
-                return;
-            }
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
 
             BasePlayer target = args.Length > 0 ? BasePlayer.Find(args[0]) : player;
-            if (target == null)
-            {
-                SendReply(player, Msg(player, "PlayerNotFound"));
-                return;
-            }
+            if (target == null) { SendReply(player, Msg(player, "PlayerNotFound")); return; }
 
             float globalDmg = GetLowestNerf(target.userID);
             string globalColor = globalDmg < 0.5f ? "#ff6666" : (globalDmg < 1.0f ? "#ffff55" : "#88ff88");
@@ -1553,9 +1652,7 @@ namespace Oxide.Plugins
             if (_playerStats.TryGetValue(target.userID, out byWeapon))
             {
                 foreach (var w in byWeapon)
-                {
                     report += $"<color=#ffff55>{Msg(player, "WeaponLine", w.Key, w.Value.GetAccuracy(), w.Value.History.Count)}</color>\n";
-                }
             }
             else
             {
@@ -1568,11 +1665,7 @@ namespace Oxide.Plugins
         [ChatCommand("ac-list")]
         void CmdAcList(BasePlayer player, string command, string[] args)
         {
-            if (!HasAccess(player, PermissionAdmin))
-            {
-                SendReply(player, Msg(player, "NoPermission"));
-                return;
-            }
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
 
             string report = $"<color=#55ff55>{Msg(player, "ActiveListHeader")}</color>\n";
             report += $"<color=#aaaaaa>{Msg(player, "ActiveListColumns")}</color>\n";
@@ -1586,11 +1679,7 @@ namespace Oxide.Plugins
                 Dictionary<string, WeaponData> byWeapon;
                 if (_playerStats.TryGetValue(target.userID, out byWeapon) && byWeapon.Count > 0)
                 {
-                    foreach (var w in byWeapon)
-                    {
-                        totalAcc += w.Value.GetAccuracy();
-                        count++;
-                    }
+                    foreach (var w in byWeapon) { totalAcc += w.Value.GetAccuracy(); count++; }
                 }
 
                 float avgAcc = count > 0 ? (totalAcc / count) : 0f;
@@ -1601,25 +1690,62 @@ namespace Oxide.Plugins
             SendReply(player, report);
         }
 
+        [ChatCommand("ac-stats")]
+        void CmdAcStats(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+
+            BasePlayer target = args.Length > 0 ? BasePlayer.Find(args[0]) : player;
+            if (target == null) { SendReply(player, Msg(player, "PlayerNotFound")); return; }
+
+            ulong targetId = target.userID;
+
+            PlayerKDAStats kda;
+            _playerKDAStats.TryGetValue(targetId, out kda);
+            int kills = kda != null ? kda.Kills : 0;
+            int deaths = kda != null ? kda.Deaths : 0;
+            int assists = kda != null ? kda.Assists : 0;
+            float kdr = kda != null ? kda.KDRatio : 0f;
+
+            PlayerPingStats pingStats;
+            _playerPingStats.TryGetValue(targetId, out pingStats);
+
+            string report = $"<color=#55ff55>{Msg(player, "StatsHeader", target.displayName)}</color>\n";
+            report += Msg(player, "StatsKDA", kills, deaths, assists, kdr) + "\n";
+
+            if (pingStats != null && pingStats.SampleCount > 0)
+            {
+                int minPing = pingStats.Min == int.MaxValue ? 0 : pingStats.Min;
+                report += Msg(player, "StatsPing", pingStats.EMA, minPing, pingStats.Max, pingStats.StdDev) + "\n";
+                report += Msg(player, "StatsPingAnomaly", pingStats.AnomalyCount) + "\n";
+            }
+            else
+            {
+                report += Msg(player, "StatsNoPingData") + "\n";
+            }
+
+            Dictionary<string, WeaponData> byWeapon;
+            if (_playerStats.TryGetValue(targetId, out byWeapon) && byWeapon.Count > 0)
+            {
+                foreach (var w in byWeapon)
+                    report += $"  {w.Key}: {w.Value.GetAccuracy():P1} ({w.Value.History.Count} shots)\n";
+            }
+
+            SendReply(player, report);
+        }
+
         [ChatCommand("ac-reset")]
         void CmdAcReset(BasePlayer player, string command, string[] args)
         {
-            if (!HasAccess(player, PermissionAdmin))
-            {
-                SendReply(player, Msg(player, "NoPermission"));
-                return;
-            }
-
-            if (args.Length == 0)
-            {
-                SendReply(player, Msg(player, "ResetUsage"));
-                return;
-            }
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+            if (args.Length == 0) { SendReply(player, Msg(player, "ResetUsage")); return; }
 
             BasePlayer target = BasePlayer.Find(args[0]);
             if (target != null && _playerStats.Remove(target.userID))
             {
                 _activeSuspicionByWeapon.Remove(target.userID);
+                _playerPingStats.Remove(target.userID);
+                _playerKDAStats.Remove(target.userID);
                 SendReply(player, $"<color=#55ff55>{Msg(player, "StatsResetSuccess", target.displayName)}</color>");
             }
             else
@@ -1631,34 +1757,17 @@ namespace Oxide.Plugins
         [ChatCommand("ac-lang")]
         void CmdAcLang(BasePlayer player, string command, string[] args)
         {
-            if (!HasAccess(player, PermissionAdmin))
-            {
-                SendReply(player, Msg(player, "NoPermission"));
-                return;
-            }
-
-            if (args.Length == 0)
-            {
-                SendReply(player, Msg(player, "LangUsage"));
-                return;
-            }
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+            if (args.Length == 0) { SendReply(player, Msg(player, "LangUsage")); return; }
 
             string requested = NormalizeLanguageCode(args[0]);
             var supported = GetSupportedLanguageCodes();
             string supportedList = string.Join(", ", supported.ToArray());
 
-            if (!IsSupportedLanguage(requested))
-            {
-                SendReply(player, Msg(player, "LangUnsupported", requested, supportedList));
-                return;
-            }
+            if (!IsSupportedLanguage(requested)) { SendReply(player, Msg(player, "LangUnsupported", requested, supportedList)); return; }
 
             string current = GetConfiguredDefaultLanguage();
-            if (current == requested)
-            {
-                SendReply(player, Msg(player, "LangAlreadySet", requested));
-                return;
-            }
+            if (current == requested) { SendReply(player, Msg(player, "LangAlreadySet", requested)); return; }
 
             Config["DefaultLanguage"] = requested;
             SaveConfig();
@@ -1668,31 +1777,14 @@ namespace Oxide.Plugins
         [ChatCommand("ac-debug")]
         void CmdAcDebug(BasePlayer player, string command, string[] args)
         {
-            if (!HasAccess(player, PermissionAdmin))
-            {
-                SendReply(player, Msg(player, "NoPermission"));
-                return;
-            }
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
 
             bool current = IsDebugEnabled();
-            if (args.Length == 0)
-            {
-                SendReply(player, Msg(player, "DebugStatus", NormalizeBoolText(current)));
-                return;
-            }
+            if (args.Length == 0) { SendReply(player, Msg(player, "DebugStatus", NormalizeBoolText(current))); return; }
 
             bool requested;
-            if (!TryParseDebugModeArg(args[0], out requested))
-            {
-                SendReply(player, Msg(player, "DebugUsage"));
-                return;
-            }
-
-            if (requested == current)
-            {
-                SendReply(player, Msg(player, "DebugAlreadySet", NormalizeBoolText(requested)));
-                return;
-            }
+            if (!TryParseDebugModeArg(args[0], out requested)) { SendReply(player, Msg(player, "DebugUsage")); return; }
+            if (requested == current) { SendReply(player, Msg(player, "DebugAlreadySet", NormalizeBoolText(requested))); return; }
 
             Config["DebugMode"] = requested;
             SaveConfig();
@@ -1703,37 +1795,19 @@ namespace Oxide.Plugins
         [ChatCommand("ac-weapon")]
         void CmdAcWeapon(BasePlayer player, string command, string[] args)
         {
-            if (!HasAccess(player, PermissionAdmin))
-            {
-                SendReply(player, Msg(player, "NoPermission"));
-                return;
-            }
-
-            if (args.Length < 3)
-            {
-                SendReply(player, Msg(player, "WeaponCfgUsage"));
-                return;
-            }
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+            if (args.Length < 3) { SendReply(player, Msg(player, "WeaponCfgUsage")); return; }
 
             string weaponName = ResolveWeaponNameFromArgument(player, args[0]);
-            if (string.IsNullOrWhiteSpace(weaponName))
-            {
-                SendReply(player, Msg(player, "WeaponCfgNoActiveWeapon"));
-                return;
-            }
-
-            string field = args[1];
-            string value = args[2];
+            if (string.IsNullOrWhiteSpace(weaponName)) { SendReply(player, Msg(player, "WeaponCfgNoActiveWeapon")); return; }
 
             string canonicalField;
             string normalizedValue;
-            if (!TrySetWeaponConfigValue(weaponName, field, value, out canonicalField, out normalizedValue))
+            if (!TrySetWeaponConfigValue(weaponName, args[1], args[2], out canonicalField, out normalizedValue))
             {
-                string loweredField = field.Trim().ToLowerInvariant();
+                string loweredField = args[1].Trim().ToLowerInvariant();
                 bool knownField = loweredField == "maxaccuracy" || loweredField == "samplecount" || loweredField == "safedistance";
-                SendReply(player, knownField
-                    ? Msg(player, "WeaponCfgValueInvalid", field, value)
-                    : Msg(player, "WeaponCfgFieldInvalid", field));
+                SendReply(player, knownField ? Msg(player, "WeaponCfgValueInvalid", args[1], args[2]) : Msg(player, "WeaponCfgFieldInvalid", args[1]));
                 return;
             }
 
@@ -1745,23 +1819,12 @@ namespace Oxide.Plugins
         [ChatCommand("ac-debug-log")]
         void CmdAcDebugLog(BasePlayer player, string command, string[] args)
         {
-            if (!HasAccess(player, PermissionAdmin))
-            {
-                SendReply(player, Msg(player, "NoPermission"));
-                return;
-            }
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
 
             if (args.Length > 0 && string.Equals(args[0], "clear", StringComparison.OrdinalIgnoreCase))
             {
-                try
-                {
-                    File.WriteAllText(_debugLogPath, string.Empty);
-                    SendReply(player, Msg(player, "DebugLogCleared"));
-                }
-                catch (Exception ex)
-                {
-                    SendReply(player, Msg(player, "DebugLogClearFailed", ex.Message));
-                }
+                try { File.WriteAllText(_debugLogPath, string.Empty); SendReply(player, Msg(player, "DebugLogCleared")); }
+                catch (Exception ex) { SendReply(player, Msg(player, "DebugLogClearFailed", ex.Message)); }
                 return;
             }
 
@@ -1771,70 +1834,40 @@ namespace Oxide.Plugins
         [ChatCommand("ac-why")]
         void CmdAcWhy(BasePlayer player, string command, string[] args)
         {
-            if (!HasAccess(player, PermissionAdmin))
-            {
-                SendReply(player, Msg(player, "NoPermission"));
-                return;
-            }
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
 
             string weaponArg = args.Length > 0 ? args[0] : "active";
             string weaponName = ResolveWeaponNameFromArgument(player, weaponArg);
-            if (string.IsNullOrWhiteSpace(weaponName))
-            {
-                SendReply(player, Msg(player, "WhyUsage"));
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(weaponName)) { SendReply(player, Msg(player, "WhyUsage")); return; }
 
             Dictionary<string, WeaponData> byWeapon;
-            if (!_playerStats.TryGetValue(player.userID, out byWeapon))
-            {
-                SendReply(player, Msg(player, "NoData"));
-                return;
-            }
+            if (!_playerStats.TryGetValue(player.userID, out byWeapon)) { SendReply(player, Msg(player, "NoData")); return; }
 
             WeaponData weaponData;
-            if (!byWeapon.TryGetValue(weaponName, out weaponData))
-            {
-                SendReply(player, Msg(player, "WhyNoWeaponData", weaponName));
-                return;
-            }
+            if (!byWeapon.TryGetValue(weaponName, out weaponData)) { SendReply(player, Msg(player, "WhyNoWeaponData", weaponName)); return; }
 
             var eval = EvaluateWeapon(weaponName, weaponData);
             float globalNerf = GetLowestNerf(player.userID);
             SendReply(player, Msg(player, "WhySummary", weaponName, eval.Accuracy, eval.SampleCount, eval.MaxAccuracy, eval.WeightedScore, eval.SuggestedNerf, globalNerf));
 
-            if (!eval.HasEnoughData)
-            {
-                SendReply(player, Msg(player, "WhyReasonNoData"));
-                return;
-            }
-
-            if (!eval.IsSuspicious)
-            {
-                SendReply(player, Msg(player, "WhyReasonBelowThreshold"));
-                return;
-            }
+            if (!eval.HasEnoughData) { SendReply(player, Msg(player, "WhyReasonNoData")); return; }
+            if (!eval.IsSuspicious) { SendReply(player, Msg(player, "WhyReasonBelowThreshold")); return; }
 
             var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
             if (ResolveWeaponConfigKey(weaponsCfg, weaponName) == null)
-            {
                 SendReply(player, Msg(player, "WhyNoConfig", weaponName));
-            }
         }
 
         [ChatCommand("ac-help")]
         void CmdAcHelp(BasePlayer player, string command, string[] args)
         {
-            if (!HasAccess(player, PermissionAdmin))
-            {
-                SendReply(player, Msg(player, "NoPermission"));
-                return;
-            }
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
 
             string report = $"<color=#55ff55>{Msg(player, "HelpHeader")}</color>\n";
             report += Msg(player, "HelpCheck") + "\n";
             report += Msg(player, "HelpList") + "\n";
             report += Msg(player, "HelpReset") + "\n";
+            report += Msg(player, "HelpStats") + "\n";
             report += Msg(player, "HelpLang") + "\n";
             report += Msg(player, "HelpDebug") + "\n";
             report += Msg(player, "HelpWeapon") + "\n";
@@ -1845,8 +1878,3 @@ namespace Oxide.Plugins
         }
     }
 }
-
-
-
-
-
