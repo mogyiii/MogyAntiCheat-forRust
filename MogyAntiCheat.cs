@@ -52,6 +52,8 @@ namespace Oxide.Plugins
         private bool _webhookRequestInFlight;
         private float _webhookWindowStart;
         private int _webhookSentInWindow;
+        private static System.Reflection.PropertyInfo _pingPropertyInfo;
+        private static bool _pingPropertyResolved;
 
         private static readonly Dictionary<string, string> MessagesEn = new Dictionary<string, string>
         {
@@ -662,6 +664,7 @@ namespace Oxide.Plugins
             Config["MissExpirySeconds"] = 20.0;
             Config["DefaultLanguage"] = DefaultLanguageFallback;
             Config["DebugMode"] = false;
+            Config["DamageReductionEnabled"] = true;
             Config["PublicApi"] = new Dictionary<string, object>
             {
                 ["Enabled"] = true,
@@ -725,6 +728,7 @@ namespace Oxide.Plugins
 
             if (Config["DefaultLanguage"] == null) { Config["DefaultLanguage"] = DefaultLanguageFallback; changed = true; }
             if (Config["DebugMode"] == null) { Config["DebugMode"] = false; changed = true; }
+            if (Config["DamageReductionEnabled"] == null) { Config["DamageReductionEnabled"] = true; changed = true; }
 
             var publicApi = Config["PublicApi"] as Dictionary<string, object>;
             if (publicApi == null)
@@ -929,6 +933,12 @@ namespace Oxide.Plugins
         private string NormalizeBoolText(bool value)
         {
             return value ? "on" : "off";
+        }
+
+        private bool IsDamageReductionEnabled()
+        {
+            if (Config["DamageReductionEnabled"] == null) return true;
+            try { return Convert.ToBoolean(Config["DamageReductionEnabled"]); } catch { return true; }
         }
 
         private bool IsDebugEnabled()
@@ -1325,7 +1335,19 @@ namespace Oxide.Plugins
 
         private int GetPlayerPing(BasePlayer player)
         {
-            try { return player?.net?.connection?.averagePing ?? 0; } catch { return 0; }
+            if (player?.net?.connection == null) return 0;
+            try
+            {
+                if (!_pingPropertyResolved)
+                {
+                    var t = player.net.connection.GetType();
+                    _pingPropertyInfo = t.GetProperty("averagePing") ?? t.GetProperty("ping");
+                    _pingPropertyResolved = true;
+                }
+                if (_pingPropertyInfo == null) return 0;
+                return Convert.ToInt32(_pingPropertyInfo.GetValue(player.net.connection));
+            }
+            catch { return 0; }
         }
 
         private PlayerPingStats GetOrCreatePingStats(ulong playerId)
@@ -1626,7 +1648,7 @@ namespace Oxide.Plugins
                 DebugLog($"Damage check: attacker={attacker.displayName} ({attacker.userID}), weapon={wName}, acc={evaluation.Accuracy:P2}, max={evaluation.MaxAccuracy:P2}, ping={ping}ms, globalNerf={globalNerf:P2}");
             }
 
-            if (shouldApplyNerfToAttacker && globalNerf < 1.0f)
+            if (shouldApplyNerfToAttacker && globalNerf < 1.0f && IsDamageReductionEnabled())
             {
                 float originalDamage = info.damageTypes.Total();
                 info.damageTypes.ScaleAll(globalNerf);
