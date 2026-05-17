@@ -100,7 +100,7 @@ RFC:
 
 ## M6 - Kiterjesztett naplózás & KDA + Ping monitorozás
 
-Státusz: `Planned`
+Státusz: `Done`
 Célidő: 2026 Q4 - 2027 Q1
 
 Cél:

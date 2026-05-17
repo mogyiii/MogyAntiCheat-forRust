@@ -99,7 +99,7 @@ RFC:
 
 ## M6 - Enhanced Logging & KDA + Ping Monitoring
 
-Status: `Planned`
+Status: `Done`
 Target: Q4 2026 - Q1 2027
 
 Goal:

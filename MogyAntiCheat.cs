@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Mogy AntiCheat", "Mogy", "1.9.4")]
+    [Info("Mogy AntiCheat", "Mogy", "1.9.5")]
     [Description("Tracks weapon accuracy trends and dynamically reduces suspicious player damage using configurable thresholds and localized admin commands.")]
     public class MogyAntiCheat : RustPlugin
     {
@@ -37,6 +37,7 @@ namespace Oxide.Plugins
         private readonly Dictionary<ulong, HashSet<string>> _activeSuspicionByWeapon = new Dictionary<ulong, HashSet<string>>();
         private readonly Dictionary<ulong, PlayerPingStats> _playerPingStats = new Dictionary<ulong, PlayerPingStats>();
         private readonly Dictionary<ulong, PlayerKDAStats> _playerKDAStats = new Dictionary<ulong, PlayerKDAStats>();
+        private readonly Dictionary<ulong, HashSet<ulong>> _damageContributors = new Dictionary<ulong, HashSet<ulong>>();
         private readonly List<ShotTelemetryEvent> _telemetryQueue = new List<ShotTelemetryEvent>();
         private readonly Queue<WebhookEnvelope> _webhookQueue = new Queue<WebhookEnvelope>();
         private Timer _webhookPumpTimer;
@@ -1131,6 +1132,7 @@ namespace Oxide.Plugins
             PlayerPingStats pingStats = GetOrCreatePingStats(player.userID);
             int deltaPing = pingStats.SampleCount > 0 ? ping - pingStats.LastPing : 0;
 
+            bool hadBaseline = pingStats.HasBaseline;
             if (IsPingMonitoringEnabled())
             {
                 bool wasAnomaly = pingStats.IsAnomalous(ping, GetPingAnomalyThreshold());
@@ -1145,6 +1147,9 @@ namespace Oxide.Plugins
             {
                 pingStats.Update(ping);
             }
+
+            if (!hadBaseline && pingStats.HasBaseline)
+                EmitPingBaselineEvent(player.userID, pingStats);
 
             Dictionary<string, WeaponData> byWeapon;
             if (!_playerStats.TryGetValue(player.userID, out byWeapon))
@@ -1189,6 +1194,17 @@ namespace Oxide.Plugins
 
             BasePlayer attacker = info.InitiatorPlayer;
             if (attacker.IsNpc || !attacker.userID.IsSteamId()) return;
+
+            if (isValidRealPlayerTarget && IsKDATrackingEnabled())
+            {
+                HashSet<ulong> contributors;
+                if (!_damageContributors.TryGetValue(targetPlayer.userID, out contributors))
+                {
+                    contributors = new HashSet<ulong>();
+                    _damageContributors[targetPlayer.userID] = contributors;
+                }
+                contributors.Add(attacker.userID);
+            }
 
             float lastHit;
             if (_lastHitTime.TryGetValue(attacker.userID, out lastHit))
@@ -1287,11 +1303,29 @@ namespace Oxide.Plugins
                 EventType = "death"
             });
 
-            if (info?.InitiatorPlayer == null) return;
-            BasePlayer attacker = info.InitiatorPlayer;
-            if (attacker.IsNpc || !attacker.userID.IsSteamId() || attacker.userID == victim.userID) return;
+            HashSet<ulong> contributors;
+            bool hasContributors = _damageContributors.TryGetValue(victim.userID, out contributors);
+
+            BasePlayer attacker = info?.InitiatorPlayer;
+            bool validKill = attacker != null && !attacker.IsNpc && attacker.userID.IsSteamId() && attacker.userID != victim.userID;
+
+            if (!validKill)
+            {
+                if (hasContributors) _damageContributors.Remove(victim.userID);
+                return;
+            }
 
             GetOrCreateKDA(attacker.userID).Kills++;
+
+            if (hasContributors)
+            {
+                foreach (ulong contributorId in contributors)
+                {
+                    if (contributorId != attacker.userID && contributorId != victim.userID)
+                        GetOrCreateKDA(contributorId).Assists++;
+                }
+                _damageContributors.Remove(victim.userID);
+            }
 
             string wName = string.Empty;
             var w = attacker.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
@@ -1439,6 +1473,23 @@ namespace Oxide.Plugins
                 Interface.CallHook("OnMogyAcPenaltyApplied", payload);
 
             EnqueueWebhookEvent("penalty_applied", payload);
+        }
+
+        private void EmitPingBaselineEvent(ulong playerId, PlayerPingStats ps)
+        {
+            if (!IsPublicApiEnabled()) return;
+            var payload = new Dictionary<string, object>
+            {
+                ["apiVersion"] = GetConfiguredApiVersion(),
+                ["playerId"] = playerId,
+                ["avg"] = ps.EMA,
+                ["min"] = ps.Min == int.MaxValue ? 0 : ps.Min,
+                ["max"] = ps.Max,
+                ["stddev"] = ps.StdDev,
+                ["sampleCount"] = ps.SampleCount,
+                ["timestampUtc"] = DateTime.UtcNow.ToString("o")
+            };
+            Interface.CallHook("OnMogyAcPingBaselineUpdate", payload);
         }
 
         private string ResolveWeaponNameFromArgument(BasePlayer player, string weaponArg)
@@ -1746,6 +1797,7 @@ namespace Oxide.Plugins
                 _activeSuspicionByWeapon.Remove(target.userID);
                 _playerPingStats.Remove(target.userID);
                 _playerKDAStats.Remove(target.userID);
+                _damageContributors.Remove(target.userID);
                 SendReply(player, $"<color=#55ff55>{Msg(player, "StatsResetSuccess", target.displayName)}</color>");
             }
             else

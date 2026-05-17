@@ -1,6 +1,6 @@
 # RFC-0005: Enhanced Logging & KDA + Ping Monitoring System
 
-Status: `Draft`
+Status: `Accepted`
 Owner: `Szabó Máté`
 Created: `2026-05-15`
 Target Milestone: `M6`

@@ -1,4 +1,4 @@
-﻿{
+{
   "NoPermission": "Nincs jogosultságod ehhez a parancshoz.",
   "PlayerNotFound": "Játékos nem található.",
   "NoData": "Nincs adat.",
@@ -30,6 +30,10 @@
   "WhyReasonBelowThreshold": "Ok: a pontosság a beállított küszöbön belül van.",
   "DebugLogPath": "Debug log fájl: {0}",
   "DebugLogCleared": "Debug log fájl törölve.",
+  "StatsKDA": "K/D/A: {0}/{1}/{2} (KDR: {3:F2})",
+  "StatsPing": "Ping: avg={0:F0}ms  min={1}ms  max={2}ms  stddev={3:F1}ms",
+  "StatsNoPingData": "Ping: Még nincs alap adat.",
+  "StatsPingAnomaly": "Ping anomáliák: {0}",
   "HelpHeader": "=== MogyAC PARANCSOK ===",
   "HelpCheck": "/ac-check [jatekosnev] - Részletes anti-cheat stat egy játékosról.",
   "HelpList": "/ac-list - Online játékosok listázása átlag pontossággal és sebzés szorzóval.",
@@ -39,5 +43,6 @@
   "HelpWeapon": "/ac-weapon <fegyver|active> <MaxAccuracy|SampleCount|SafeDistance> <ertek> - Fegyver config frissítése.",
   "HelpDebugLog": "/ac-debug-log [clear] - Debug log fájl útvonala vagy törlése.",
   "HelpWhy": "/ac-why [weapon|active] - Megmutatja, miért (nem) aktív a nerf.",
+  "HelpStats": "/ac-stats [jatekosnev] - K/D/A és ping statisztika egy játékosról.",
   "HelpHelp": "/ac-help - Ez a parancslista."
 }

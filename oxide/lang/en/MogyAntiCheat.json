@@ -1,4 +1,4 @@
-﻿{
+{
   "NoPermission": "You do not have permission to use this command.",
   "PlayerNotFound": "Player not found.",
   "NoData": "No data.",
@@ -30,6 +30,10 @@
   "WhyReasonBelowThreshold": "Reason: accuracy is within configured threshold.",
   "DebugLogPath": "Debug log file: {0}",
   "DebugLogCleared": "Debug log file cleared.",
+  "StatsKDA": "K/D/A: {0}/{1}/{2} (KDR: {3:F2})",
+  "StatsPing": "Ping: avg={0:F0}ms  min={1}ms  max={2}ms  stddev={3:F1}ms",
+  "StatsNoPingData": "Ping: No baseline data yet.",
+  "StatsPingAnomaly": "Ping anomalies: {0}",
   "HelpHeader": "=== MogyAC COMMANDS ===",
   "HelpCheck": "/ac-check [playerName] - Show detailed anti-cheat stats for a player.",
   "HelpList": "/ac-list - List online players with average accuracy and damage multiplier.",
@@ -39,5 +43,6 @@
   "HelpWeapon": "/ac-weapon <weapon|active> <MaxAccuracy|SampleCount|SafeDistance> <value> - Update weapon config.",
   "HelpDebugLog": "/ac-debug-log [clear] - Show or clear debug log file.",
   "HelpWhy": "/ac-why [weapon|active] - Explain why nerf is or is not applied.",
+  "HelpStats": "/ac-stats [playerName] - Show K/D/A and ping stats for a player.",
   "HelpHelp": "/ac-help - Show this command list."
 }

@@ -1,6 +1,6 @@
 # MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.4).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.5).
 
 ## Purpose
 
@@ -41,12 +41,27 @@ Out of scope:
   - Tracks currently suspicious weapons per player for transition-based event emission.
 - `_webhookQueue: Queue<WebhookEnvelope>` + runtime send state
   - In-memory bounded queue for outbound webhook events (`suspicion`, `penalty_applied`).
+- `_playerPingStats: Dictionary<ulong, PlayerPingStats>`
+  - Per-player EMA ping baseline, running variance (Welford), min/max, anomaly count.
+  - Populated every shot fired (both `OnWeaponFired` and `OnEntityTakeDamage`).
+  - Runtime-only (not persisted).
+- `_playerKDAStats: Dictionary<ulong, PlayerKDAStats>`
+  - Per-player kills, deaths, assists counters.
+  - Persisted to `MogyAntiCheat_KDA.json`.
+- `_damageContributors: Dictionary<ulong, HashSet<ulong>>`
+  - Tracks which players dealt damage to each live victim (for assist calculation).
+  - Cleared per victim on `OnEntityDeath`. Runtime-only.
+- `_telemetryQueue: List<ShotTelemetryEvent>`
+  - In-memory buffer of shot, hit, kill, and death events.
+  - Flushed on timer or when size reaches `TelemetryQueueMaxSize`.
 
 Persistence:
 
 - Saved on `OnServerSave` and `Unload`.
-- Data file: `MogyAntiCheat_Stats.json` under runtime data directory.
-- Only `History` is persisted; pending misses and active suspicion cache are runtime-only.
+- `MogyAntiCheat_Stats.json` — weapon history (shots/hits) per player.
+- `MogyAntiCheat_KDA.json` — K/D/A counters per player.
+- `MogyAntiCheat_Events_<YYYYMMDD>.log` — JSON Lines telemetry (shot/hit/kill/death events), written to runtime data directory.
+- Pending shots, suspicion cache, ping stats, and damage contributors are runtime-only.
 
 Runtime compatibility:
 
@@ -60,8 +75,12 @@ Runtime compatibility:
 
 - Ignore null and NPC attackers.
 - Resolve weapon short name.
+- Update per-player ping baseline (EMA + Welford variance); delta-ping computed vs last recorded ping.
+- On first baseline establishment (`SampleCount == PingBaselineSamples`), emit `OnMogyAcPingBaselineUpdate`.
+- Anomaly detection (if `PingMonitoring.Enabled`): spike logged when `|ping - EMA| > threshold * StdDev`; `AnomalyCount` incremented.
 - Ensure attacker/weapon tracking state exists.
-- Add a pending shot entry (`AddMiss`).
+- Add a pending shot entry (`AddMiss`) with ping and delta-ping.
+- Enqueue `ShotTelemetryEvent` (type `shot`).
 
 ### 2) `OnEntityTakeDamage(BaseEntity entity, HitInfo info)`
 
@@ -70,6 +89,7 @@ Runtime compatibility:
 - Continue for real player targets (`BasePlayer`, non-NPC, valid Steam ID).
 - In `DebugMode`, include all `BaseCombatEntity` targets (except buildings), including NPC/debug-spawned entities, for hit analysis.
 - Continue only for real player attackers (non-NPC, valid Steam ID).
+- If target is a real player and `KDATracking.Enabled`: record attacker in `_damageContributors[victim]` for assist calculation.
 - Debounce repeated hit events within 0.05 seconds.
 - Resolve active weapon and hit distance.
 - Load per-weapon `SampleCount` and global `MissExpirySeconds`.
@@ -77,6 +97,19 @@ Runtime compatibility:
 - Evaluate suspicion for active weapon and emit transition event payload.
 - Compute attacker nerf (`GetLowestNerf`) and scale outgoing damage if needed.
 - Emit penalty-applied hook after scaling (if enabled).
+- Enqueue `ShotTelemetryEvent` (type `hit`).
+
+### 3) `OnEntityDeath(BaseCombatEntity entity, HitInfo info)`
+
+- Only processed when `KDATracking.Enabled`.
+- Ignore non-player and NPC victims.
+- Increment victim's death counter.
+- Enqueue `ShotTelemetryEvent` (type `death`).
+- If no valid killer (environment/suicide/NPC): clean up `_damageContributors[victim]` and return.
+- Increment killer's kill counter.
+- Credit assists: all players in `_damageContributors[victim]` except the killer receive +1 assist.
+- Clean up `_damageContributors[victim]`.
+- Enqueue `ShotTelemetryEvent` (type `kill`).
 
 ## Shot Correlation Rules
 
@@ -131,21 +164,28 @@ Admin exemption:
 Config under `PublicApi`:
 
 - `Enabled` (`bool`, default `true`)
-- `ApiVersion` (`string`, default `1.0.0`)
+- `ApiVersion` (`string`, default `1.1.0`)
 - `EmitSuspicionEvents` (`bool`, default `true`)
 - `EmitPenaltyEvents` (`bool`, default `true`)
 
 Query methods:
 
-- `GetApiVersion()` -> configured API version string.
-- `GetPlayerAcState(ulong playerId)` -> read-only player anti-cheat snapshot or `null`.
+- `GetApiVersion()` → configured API version string.
+- `GetPlayerAcState(ulong playerId)` → read-only player anti-cheat snapshot or `null` (includes ping and KDA fields since 1.1.0).
+- `GetPlayerPingStats(ulong playerId)` → ping baseline snapshot or `null`.
+- `GetPlayerKDAStats(ulong playerId)` → K/D/A counters or `null`.
 
 Hooks:
 
 - `OnMogyAcSuspicion(Dictionary<string, object> payload)`
   - Emitted once when a player+weapon enters suspicious state.
+  - Payload includes `pingBaselineAvg` and `pingBaselineStdDev` (since 1.1.0).
 - `OnMogyAcPenaltyApplied(Dictionary<string, object> payload)`
   - Emitted when outgoing damage scaling is applied.
+  - Payload includes `pingAtEvent`, `pingBaselineAvg`, `pingAnomaly` (since 1.1.0).
+- `OnMogyAcPingBaselineUpdate(Dictionary<string, object> payload)`
+  - Emitted once per player when ping baseline is first established (since 1.1.0).
+  - Gated by `PublicApi.Enabled`.
 
 ## Configuration Contract
 
@@ -177,7 +217,10 @@ If a weapon has no entry, history limit falls back to `40` during hit registrati
   - Displays online players with average tracked accuracy and global damage multiplier.
 - `/ac-reset [name]`
   - Admin-only.
-  - Removes target player's tracked state from memory.
+  - Removes target player's tracked state from memory (clears stats, ping, KDA, damage contributors).
+- `/ac-stats [name]`
+  - Admin-only.
+  - Shows K/D/A, ping baseline, and per-weapon accuracy for a player.
 - `/ac-lang <code>`
   - Admin-only.
   - Sets and persists `DefaultLanguage` in plugin config.
