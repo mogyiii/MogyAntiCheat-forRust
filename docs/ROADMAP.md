@@ -125,7 +125,7 @@ RFC:
 
 ## M7 - LagSwitch Detection
 
-Status: `Planned`
+Status: `Done`
 Target: Q1 2027
 
 Goal:

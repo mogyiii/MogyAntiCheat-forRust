@@ -34,6 +34,14 @@
   "StatsPing": "Ping: avg={0:F0}ms  min={1}ms  max={2}ms  stddev={3:F1}ms",
   "StatsNoPingData": "Ping: No baseline data yet.",
   "StatsPingAnomaly": "Ping anomalies: {0}",
+  "LsHeader": "=== MogyAC Lagswitch Audit: {0} ===",
+  "LsNoIncidents": "No lagswitch incidents recorded.",
+  "LsIncident": "[{0}] Victim: {1} | Weapon: {2} @ {3:F0}m | Confidence: {4:F2}",
+  "LsIncidentPing": "  Ping: {0}ms (baseline: {1:F0}ms, spike: +{2}ms)",
+  "LsIncidentKill": "  Accuracy: {0:P1} | Headshot: {1}",
+  "LsIncidentReconnect": "  Reconnect score: {0:F2}",
+  "LsSummary": "Summary: {0} total | 24h: {1} | Avg confidence: {2:F2}",
+  "LsPatternWarning": "WARNING: Lagswitch pattern detected!",
   "HelpHeader": "=== MogyAC COMMANDS ===",
   "HelpCheck": "/ac-check [playerName] - Show detailed anti-cheat stats for a player.",
   "HelpList": "/ac-list - List online players with average accuracy and damage multiplier.",
@@ -44,5 +52,6 @@
   "HelpDebugLog": "/ac-debug-log [clear] - Show or clear debug log file.",
   "HelpWhy": "/ac-why [weapon|active] - Explain why nerf is or is not applied.",
   "HelpStats": "/ac-stats [playerName] - Show K/D/A and ping stats for a player.",
+  "HelpLagswitch": "/ac-lagswitch-audit [playerName] - Show lagswitch forensic timeline.",
   "HelpHelp": "/ac-help - Show this command list."
 }

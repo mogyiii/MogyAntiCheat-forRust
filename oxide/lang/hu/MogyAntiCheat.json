@@ -34,6 +34,14 @@
   "StatsPing": "Ping: avg={0:F0}ms  min={1}ms  max={2}ms  stddev={3:F1}ms",
   "StatsNoPingData": "Ping: Még nincs alap adat.",
   "StatsPingAnomaly": "Ping anomáliák: {0}",
+  "LsHeader": "=== MogyAC Lagswitch Audit: {0} ===",
+  "LsNoIncidents": "Nincs rögzített lagswitch incidens.",
+  "LsIncident": "[{0}] Áldozat: {1} | Fegyver: {2} @ {3:F0}m | Biztonság: {4:F2}",
+  "LsIncidentPing": "  Ping: {0}ms (alap: {1:F0}ms, tüske: +{2}ms)",
+  "LsIncidentKill": "  Pontosság: {0:P1} | Fejlövés: {1}",
+  "LsIncidentReconnect": "  Reconnect pontszám: {0:F2}",
+  "LsSummary": "Összefoglaló: {0} összesen | 24h: {1} | Átl. biztonság: {2:F2}",
+  "LsPatternWarning": "FIGYELEM: Lagswitch minta észlelve!",
   "HelpHeader": "=== MogyAC PARANCSOK ===",
   "HelpCheck": "/ac-check [jatekosnev] - Részletes anti-cheat stat egy játékosról.",
   "HelpList": "/ac-list - Online játékosok listázása átlag pontossággal és sebzés szorzóval.",
@@ -44,5 +52,6 @@
   "HelpDebugLog": "/ac-debug-log [clear] - Debug log fájl útvonala vagy törlése.",
   "HelpWhy": "/ac-why [weapon|active] - Megmutatja, miért (nem) aktív a nerf.",
   "HelpStats": "/ac-stats [jatekosnev] - K/D/A és ping statisztika egy játékosról.",
+  "HelpLagswitch": "/ac-lagswitch-audit [jatekosnev] - Lagswitch törvényszéki idővonal.",
   "HelpHelp": "/ac-help - Ez a parancslista."
 }

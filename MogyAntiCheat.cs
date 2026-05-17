@@ -11,12 +11,12 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Mogy AntiCheat", "Mogy", "1.9.5")]
+    [Info("Mogy AntiCheat", "Mogy", "1.9.6")]
     [Description("Tracks weapon accuracy trends and dynamically reduces suspicious player damage using configurable thresholds and localized admin commands.")]
     public class MogyAntiCheat : RustPlugin
     {
         private const string DefaultLanguageFallback = "en";
-        private const string PublicApiVersionCurrent = "1.1.0";
+        private const string PublicApiVersionCurrent = "1.2.0";
         private const string DebugLogFileName = "MogyAntiCheat_Debug.log";
         private const float WebhookRateWindowSeconds = 1f;
         private const string PermissionAdmin = "mogyanticheat.admin";
@@ -38,6 +38,9 @@ namespace Oxide.Plugins
         private readonly Dictionary<ulong, PlayerPingStats> _playerPingStats = new Dictionary<ulong, PlayerPingStats>();
         private readonly Dictionary<ulong, PlayerKDAStats> _playerKDAStats = new Dictionary<ulong, PlayerKDAStats>();
         private readonly Dictionary<ulong, HashSet<ulong>> _damageContributors = new Dictionary<ulong, HashSet<ulong>>();
+        private readonly Dictionary<ulong, List<LagSwitchIncident>> _lagswitchIncidents = new Dictionary<ulong, List<LagSwitchIncident>>();
+        private readonly Dictionary<ulong, float> _lastDisconnectTime = new Dictionary<ulong, float>();
+        private readonly Dictionary<ulong, int> _connectionDropCount = new Dictionary<ulong, int>();
         private readonly List<ShotTelemetryEvent> _telemetryQueue = new List<ShotTelemetryEvent>();
         private readonly Queue<WebhookEnvelope> _webhookQueue = new Queue<WebhookEnvelope>();
         private Timer _webhookPumpTimer;
@@ -94,7 +97,16 @@ namespace Oxide.Plugins
             ["StatsKDA"] = "K/D/A: {0}/{1}/{2} (KDR: {3:F2})",
             ["StatsPing"] = "Ping: avg={0:F0}ms  min={1}ms  max={2}ms  stddev={3:F1}ms",
             ["StatsNoPingData"] = "Ping: No baseline data yet.",
-            ["StatsPingAnomaly"] = "Ping anomalies (24h): {0}"
+            ["StatsPingAnomaly"] = "Ping anomalies (24h): {0}",
+            ["LsHeader"] = "=== MogyAC Lagswitch Audit: {0} ===",
+            ["LsNoIncidents"] = "No lagswitch incidents recorded.",
+            ["LsIncident"] = "[{0}] Victim: {1} | Weapon: {2} @ {3:F0}m | Confidence: {4:F2}",
+            ["LsIncidentPing"] = "  Ping: {0}ms (baseline: {1:F0}ms, spike: +{2}ms)",
+            ["LsIncidentKill"] = "  Accuracy: {0:P1} | Headshot: {1}",
+            ["LsIncidentReconnect"] = "  Reconnect score: {0:F2}",
+            ["LsSummary"] = "Summary: {0} total | 24h: {1} | Avg confidence: {2:F2}",
+            ["LsPatternWarning"] = "WARNING: Lagswitch pattern detected!",
+            ["HelpLagswitch"] = "/ac-lagswitch-audit [playerName] - Show lagswitch forensic timeline."
         };
 
         private static readonly Dictionary<string, string> MessagesHu = new Dictionary<string, string>
@@ -145,7 +157,16 @@ namespace Oxide.Plugins
             ["StatsKDA"] = "K/D/A: {0}/{1}/{2} (KDR: {3:F2})",
             ["StatsPing"] = "Ping: avg={0:F0}ms  min={1}ms  max={2}ms  stddev={3:F1}ms",
             ["StatsNoPingData"] = "Ping: Még nincs alap adat.",
-            ["StatsPingAnomaly"] = "Ping anomáliák (24h): {0}"
+            ["StatsPingAnomaly"] = "Ping anomáliák (24h): {0}",
+            ["LsHeader"] = "=== MogyAC Lagswitch Audit: {0} ===",
+            ["LsNoIncidents"] = "Nincs rögzített lagswitch incidens.",
+            ["LsIncident"] = "[{0}] Áldozat: {1} | Fegyver: {2} @ {3:F0}m | Biztonság: {4:F2}",
+            ["LsIncidentPing"] = "  Ping: {0}ms (alap: {1:F0}ms, tüske: +{2}ms)",
+            ["LsIncidentKill"] = "  Pontosság: {0:P1} | Fejlövés: {1}",
+            ["LsIncidentReconnect"] = "  Reconnect pontszám: {0:F2}",
+            ["LsSummary"] = "Összefoglaló: {0} összesen | 24h: {1} | Átl. biztonság: {2:F2}",
+            ["LsPatternWarning"] = "FIGYELEM: Lagswitch minta észlelve!",
+            ["HelpLagswitch"] = "/ac-lagswitch-audit [jatekosnev] - Lagswitch törvényszéki idővonal."
         };
 
         private struct ShotResult
@@ -320,6 +341,24 @@ namespace Oxide.Plugins
             public int DeltaPingMs;
             public float AccuracyInWindow;
             public string EventType;
+        }
+
+        private class LagSwitchIncident
+        {
+            public long TimestampMs;
+            public ulong VictimId;
+            public string WeaponName;
+            public float Distance;
+            public float KillAccuracy;
+            public bool WasHeadshot;
+            public int PingAtKill;
+            public double PingBaselineAvg;
+            public double PingBaselineStdDev;
+            public int PingSpike;
+            public float PingSpikeScore;
+            public float KillQualityScore;
+            public float ReconnectScore;
+            public float Confidence;
         }
 
         void Init()
@@ -566,6 +605,15 @@ namespace Oxide.Plugins
             {
                 ["Enabled"] = true
             };
+            Config["LagswitchDetection"] = new Dictionary<string, object>
+            {
+                ["Enabled"] = true,
+                ["Threshold"] = 0.70,
+                ["PatternThreshold"] = 0.75,
+                ["MinIncidentsForPattern"] = 3,
+                ["PingSpikeMinimumMs"] = 50,
+                ["PreKillWindowMs"] = 1000
+            };
             SaveConfig();
         }
 
@@ -624,6 +672,26 @@ namespace Oxide.Plugins
                 changed = true;
             }
 
+            var lsCfg = Config["LagswitchDetection"] as Dictionary<string, object>;
+            if (lsCfg == null)
+            {
+                Config["LagswitchDetection"] = new Dictionary<string, object>
+                {
+                    ["Enabled"] = true, ["Threshold"] = 0.70, ["PatternThreshold"] = 0.75,
+                    ["MinIncidentsForPattern"] = 3, ["PingSpikeMinimumMs"] = 50, ["PreKillWindowMs"] = 1000
+                };
+                changed = true;
+            }
+            else
+            {
+                if (!lsCfg.ContainsKey("Enabled")) { lsCfg["Enabled"] = true; changed = true; }
+                if (!lsCfg.ContainsKey("Threshold")) { lsCfg["Threshold"] = 0.70; changed = true; }
+                if (!lsCfg.ContainsKey("PatternThreshold")) { lsCfg["PatternThreshold"] = 0.75; changed = true; }
+                if (!lsCfg.ContainsKey("MinIncidentsForPattern")) { lsCfg["MinIncidentsForPattern"] = 3; changed = true; }
+                if (!lsCfg.ContainsKey("PingSpikeMinimumMs")) { lsCfg["PingSpikeMinimumMs"] = 50; changed = true; }
+                if (!lsCfg.ContainsKey("PreKillWindowMs")) { lsCfg["PreKillWindowMs"] = 1000; changed = true; }
+            }
+
             if (changed) SaveConfig();
         }
 
@@ -653,6 +721,48 @@ namespace Oxide.Plugins
             var cfg = Config["EventLogging"] as Dictionary<string, object>;
             if (cfg == null || !cfg.ContainsKey("Enabled")) return true;
             try { return Convert.ToBoolean(cfg["Enabled"]); } catch { return true; }
+        }
+
+        private bool IsLagswitchDetectionEnabled()
+        {
+            var cfg = Config["LagswitchDetection"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("Enabled")) return true;
+            try { return Convert.ToBoolean(cfg["Enabled"]); } catch { return true; }
+        }
+
+        private float GetLagswitchThreshold()
+        {
+            var cfg = Config["LagswitchDetection"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("Threshold")) return 0.70f;
+            try { return Convert.ToSingle(cfg["Threshold"]); } catch { return 0.70f; }
+        }
+
+        private float GetLagswitchPatternThreshold()
+        {
+            var cfg = Config["LagswitchDetection"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("PatternThreshold")) return 0.75f;
+            try { return Convert.ToSingle(cfg["PatternThreshold"]); } catch { return 0.75f; }
+        }
+
+        private int GetLagswitchMinIncidentsForPattern()
+        {
+            var cfg = Config["LagswitchDetection"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("MinIncidentsForPattern")) return 3;
+            try { return Convert.ToInt32(cfg["MinIncidentsForPattern"]); } catch { return 3; }
+        }
+
+        private float GetLagswitchPingSpikeMinMs()
+        {
+            var cfg = Config["LagswitchDetection"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("PingSpikeMinimumMs")) return 50f;
+            try { return Convert.ToSingle(cfg["PingSpikeMinimumMs"]); } catch { return 50f; }
+        }
+
+        private float GetLagswitchPreKillWindowSec()
+        {
+            var cfg = Config["LagswitchDetection"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("PreKillWindowMs")) return 1f;
+            try { return Convert.ToSingle(cfg["PreKillWindowMs"]) / 1000f; } catch { return 1f; }
         }
 
         private string GetConfiguredDefaultLanguage()
@@ -1286,6 +1396,15 @@ namespace Oxide.Plugins
             }
         }
 
+        void OnPlayerDisconnected(BasePlayer player, string reason)
+        {
+            if (player == null || player.IsNpc || !player.userID.IsSteamId()) return;
+            _lastDisconnectTime[player.userID] = UnityEngine.Time.realtimeSinceStartup;
+            int count;
+            _connectionDropCount.TryGetValue(player.userID, out count);
+            _connectionDropCount[player.userID] = count + 1;
+        }
+
         void OnEntityDeath(BaseCombatEntity entity, HitInfo info)
         {
             if (!IsKDATrackingEnabled()) return;
@@ -1331,16 +1450,22 @@ namespace Oxide.Plugins
             var w = attacker.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
             if (w != null) wName = w.ShortPrefabName.Replace(".entity", "");
 
+            float killDist = Vector3.Distance(attacker.transform.position, victim.transform.position);
+            int killPing = GetPlayerPing(attacker);
+            bool wasHeadshot = info?.isHeadshot ?? false;
+
             EnqueueTelemetry(new ShotTelemetryEvent
             {
                 TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 PlayerId = attacker.userID,
                 WeaponName = wName,
-                Distance = Vector3.Distance(attacker.transform.position, victim.transform.position),
+                Distance = killDist,
                 Hit = true,
-                PingMs = GetPlayerPing(attacker),
+                PingMs = killPing,
                 EventType = "kill"
             });
+
+            EvaluateLagswitch(attacker, victim, wName, killDist, wasHeadshot, killPing);
         }
 
         private WeaponEvaluation EvaluateWeapon(string weaponName, WeaponData data)
@@ -1490,6 +1615,99 @@ namespace Oxide.Plugins
                 ["timestampUtc"] = DateTime.UtcNow.ToString("o")
             };
             Interface.CallHook("OnMogyAcPingBaselineUpdate", payload);
+        }
+
+        private void EvaluateLagswitch(BasePlayer attacker, BasePlayer victim, string wName, float distance, bool wasHeadshot, int pingAtKill)
+        {
+            if (!IsLagswitchDetectionEnabled()) return;
+            if (attacker == null || victim == null) return;
+
+            PlayerPingStats pingStats;
+            if (!_playerPingStats.TryGetValue(attacker.userID, out pingStats) || !pingStats.HasBaseline) return;
+
+            double baseline = pingStats.EMA;
+            int spike = pingAtKill - (int)baseline;
+            float spikeMin = GetLagswitchPingSpikeMinMs();
+            float pingSpikeScore;
+            if (spike < spikeMin) pingSpikeScore = 0f;
+            else if (spike > 150) pingSpikeScore = 1f;
+            else pingSpikeScore = (float)((spike - spikeMin) / (150.0 - spikeMin));
+
+            float killAccuracy = 0f;
+            Dictionary<string, WeaponData> byWeapon;
+            if (_playerStats.TryGetValue(attacker.userID, out byWeapon))
+            {
+                WeaponData wd;
+                if (byWeapon.TryGetValue(wName, out wd)) killAccuracy = wd.GetAccuracy();
+            }
+            float killQualityScore = Mathf.Clamp01(killAccuracy);
+            if (wasHeadshot) killQualityScore = Mathf.Min(killQualityScore * 1.05f, 1f);
+
+            float reconnectScore = 0f;
+            float lastDisc;
+            if (_lastDisconnectTime.TryGetValue(attacker.userID, out lastDisc))
+            {
+                float elapsed = UnityEngine.Time.realtimeSinceStartup - lastDisc;
+                float window = GetLagswitchPreKillWindowSec();
+                if (elapsed <= window) reconnectScore = 1f - (elapsed / window);
+            }
+
+            float confidence = (pingSpikeScore * 0.40f) + (killQualityScore * 0.35f) + (reconnectScore * 0.25f);
+            if (confidence < GetLagswitchThreshold()) return;
+
+            var incident = new LagSwitchIncident
+            {
+                TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                VictimId = victim.userID,
+                WeaponName = wName,
+                Distance = distance,
+                KillAccuracy = killAccuracy,
+                WasHeadshot = wasHeadshot,
+                PingAtKill = pingAtKill,
+                PingBaselineAvg = baseline,
+                PingBaselineStdDev = pingStats.StdDev,
+                PingSpike = spike,
+                PingSpikeScore = pingSpikeScore,
+                KillQualityScore = killQualityScore,
+                ReconnectScore = reconnectScore,
+                Confidence = confidence
+            };
+
+            List<LagSwitchIncident> incidents;
+            if (!_lagswitchIncidents.TryGetValue(attacker.userID, out incidents))
+            {
+                incidents = new List<LagSwitchIncident>();
+                _lagswitchIncidents[attacker.userID] = incidents;
+            }
+            incidents.Add(incident);
+
+            DebugLog($"Lagswitch detected: player={attacker.displayName} ({attacker.userID}), confidence={confidence:F2}, pingSpike={spike}ms, acc={killAccuracy:P1}");
+            EmitLagswitchEvent(attacker, victim, wName, incident);
+        }
+
+        private void EmitLagswitchEvent(BasePlayer attacker, BasePlayer victim, string weaponName, LagSwitchIncident incident)
+        {
+            var payload = new Dictionary<string, object>
+            {
+                ["apiVersion"] = GetConfiguredApiVersion(),
+                ["playerId"] = attacker.userID,
+                ["victimId"] = victim.userID,
+                ["weaponShortName"] = weaponName,
+                ["confidence"] = incident.Confidence,
+                ["pingAtKill"] = incident.PingAtKill,
+                ["pingBaselineAvg"] = incident.PingBaselineAvg,
+                ["pingSpike"] = incident.PingSpike,
+                ["killAccuracy"] = incident.KillAccuracy,
+                ["wasHeadshot"] = incident.WasHeadshot,
+                ["distance"] = incident.Distance,
+                ["reconnectScore"] = incident.ReconnectScore,
+                ["timestampUtc"] = DateTime.UtcNow.ToString("o")
+            };
+
+            if (IsPublicApiEnabled())
+                Interface.CallHook("OnMogyAcLagswitchDetected", payload);
+
+            EnqueueWebhookEvent("lagswitch_detected", payload);
         }
 
         private string ResolveWeaponNameFromArgument(BasePlayer player, string weaponArg)
@@ -1684,6 +1902,36 @@ namespace Oxide.Plugins
             };
         }
 
+        object GetLagswitchStats(ulong playerId)
+        {
+            List<LagSwitchIncident> incidents;
+            if (!_lagswitchIncidents.TryGetValue(playerId, out incidents) || incidents.Count == 0) return null;
+
+            long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            long ms24h = 24L * 60 * 60 * 1000;
+            long ms7d = 7L * 24 * 60 * 60 * 1000;
+            int count24h = 0, count7d = 0;
+            float sumConf = 0f;
+            foreach (var inc in incidents)
+            {
+                long age = nowMs - inc.TimestampMs;
+                if (age <= ms24h) count24h++;
+                if (age <= ms7d) count7d++;
+                sumConf += inc.Confidence;
+            }
+            float avgConf = sumConf / incidents.Count;
+            bool patternDetected = count24h >= GetLagswitchMinIncidentsForPattern() && avgConf >= GetLagswitchPatternThreshold();
+
+            return new Dictionary<string, object>
+            {
+                ["incidentCount24h"] = count24h,
+                ["incidentCount7d"] = count7d,
+                ["incidentCountTotal"] = incidents.Count,
+                ["avgConfidence"] = avgConf,
+                ["patternDetected"] = patternDetected
+            };
+        }
+
         [ChatCommand("ac-check")]
         void CmdChatCheck(BasePlayer player, string command, string[] args)
         {
@@ -1798,6 +2046,9 @@ namespace Oxide.Plugins
                 _playerPingStats.Remove(target.userID);
                 _playerKDAStats.Remove(target.userID);
                 _damageContributors.Remove(target.userID);
+                _lagswitchIncidents.Remove(target.userID);
+                _lastDisconnectTime.Remove(target.userID);
+                _connectionDropCount.Remove(target.userID);
                 SendReply(player, $"<color=#55ff55>{Msg(player, "StatsResetSuccess", target.displayName)}</color>");
             }
             else
@@ -1910,6 +2161,59 @@ namespace Oxide.Plugins
                 SendReply(player, Msg(player, "WhyNoConfig", weaponName));
         }
 
+        [ChatCommand("ac-lagswitch-audit")]
+        void CmdAcLagswitchAudit(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+
+            BasePlayer target = args.Length > 0 ? BasePlayer.Find(args[0]) : player;
+            if (target == null) { SendReply(player, Msg(player, "PlayerNotFound")); return; }
+
+            string report = $"<color=#55ff55>{Msg(player, "LsHeader", target.displayName)}</color>\n";
+
+            List<LagSwitchIncident> incidents;
+            if (!_lagswitchIncidents.TryGetValue(target.userID, out incidents) || incidents.Count == 0)
+            {
+                report += Msg(player, "LsNoIncidents");
+                SendReply(player, report);
+                return;
+            }
+
+            long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            long ms24h = 24L * 60 * 60 * 1000;
+            int count24h = 0;
+            float sumConf = 0f;
+
+            var sorted = new List<LagSwitchIncident>(incidents);
+            sorted.Sort((a, b) => b.TimestampMs.CompareTo(a.TimestampMs));
+
+            foreach (var inc in sorted)
+            {
+                long age = nowMs - inc.TimestampMs;
+                if (age <= ms24h) count24h++;
+                sumConf += inc.Confidence;
+
+                string ts = DateTimeOffset.FromUnixTimeMilliseconds(inc.TimestampMs).ToString("yyyy-MM-dd HH:mm:ss");
+                var victimPlayer = BasePlayer.FindByID(inc.VictimId);
+                string victimName = victimPlayer != null ? victimPlayer.displayName : inc.VictimId.ToString();
+
+                report += Msg(player, "LsIncident", ts, victimName, inc.WeaponName, inc.Distance, inc.Confidence) + "\n";
+                report += Msg(player, "LsIncidentPing", inc.PingAtKill, inc.PingBaselineAvg, inc.PingSpike) + "\n";
+                report += Msg(player, "LsIncidentKill", inc.KillAccuracy, inc.WasHeadshot) + "\n";
+                if (inc.ReconnectScore > 0f)
+                    report += Msg(player, "LsIncidentReconnect", inc.ReconnectScore) + "\n";
+            }
+
+            float avgConf = sumConf / incidents.Count;
+            report += Msg(player, "LsSummary", incidents.Count, count24h, avgConf) + "\n";
+
+            bool patternDetected = count24h >= GetLagswitchMinIncidentsForPattern() && avgConf >= GetLagswitchPatternThreshold();
+            if (patternDetected)
+                report += $"<color=#ff4444>{Msg(player, "LsPatternWarning")}</color>";
+
+            SendReply(player, report);
+        }
+
         [ChatCommand("ac-help")]
         void CmdAcHelp(BasePlayer player, string command, string[] args)
         {
@@ -1925,6 +2229,7 @@ namespace Oxide.Plugins
             report += Msg(player, "HelpWeapon") + "\n";
             report += Msg(player, "HelpDebugLog") + "\n";
             report += Msg(player, "HelpWhy") + "\n";
+            report += Msg(player, "HelpLagswitch") + "\n";
             report += Msg(player, "HelpHelp");
             SendReply(player, report);
         }

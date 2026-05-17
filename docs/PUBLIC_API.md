@@ -1,12 +1,12 @@
 # MogyAntiCheat Public API
 
 This document defines the public extension contract for external plugins.
-Current state: `Implemented` (milestone M6 baseline).
+Current state: `Implemented` (milestone M7 baseline).
 
 ## Versioning
 
 - Config key: `PublicApi.ApiVersion`
-- Current default: `1.1.0`
+- Current default: `1.2.0`
 - Method: `GetApiVersion()`
 
 Version policy:
@@ -80,6 +80,29 @@ Payload fields:
 
 ---
 
+## `OnMogyAcLagswitchDetected`
+
+When called:
+- Triggered when a kill's computed lagswitch confidence exceeds `LagswitchDetection.Threshold`.
+- Gated by `PublicApi.Enabled`.
+
+Payload fields:
+- `string apiVersion`
+- `ulong playerId` — suspected attacker
+- `ulong victimId`
+- `string weaponShortName`
+- `float confidence` — 0.0–1.0 composite score
+- `int pingAtKill`
+- `double pingBaselineAvg`
+- `int pingSpike` — `pingAtKill - pingBaselineAvg`
+- `float killAccuracy` — attacker weapon accuracy at time of kill
+- `bool wasHeadshot`
+- `float distance`
+- `float reconnectScore` — 0–1; >0 if attacker reconnected within the pre-kill window
+- `string timestampUtc` (ISO-8601 UTC)
+
+---
+
 ## Query Methods
 
 ### `GetApiVersion()`
@@ -145,6 +168,19 @@ Returns:
   - `int deaths`
   - `int assists`
   - `float kdaRatio` — kills / deaths (deaths=0 → returns kills as-is)
+
+---
+
+### `GetLagswitchStats(ulong playerId)`
+
+Returns:
+- `null` if no lagswitch incidents recorded.
+- Otherwise:
+  - `int incidentCount24h`
+  - `int incidentCount7d`
+  - `int incidentCountTotal`
+  - `float avgConfidence`
+  - `bool patternDetected` — true when `incidentCount24h ≥ MinIncidentsForPattern` and `avgConfidence ≥ PatternThreshold`
 
 ---
 

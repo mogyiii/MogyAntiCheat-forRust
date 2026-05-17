@@ -1,6 +1,6 @@
 # RFC-0006: LagSwitch Detection
 
-Status: `Draft`
+Status: `Accepted`
 Owner: `Szabó Máté`
 Created: `2026-05-15`
 Target Milestone: `M7`

@@ -1,6 +1,6 @@
 # MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.5).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.6).
 
 ## Purpose
 
@@ -51,6 +51,12 @@ Out of scope:
 - `_damageContributors: Dictionary<ulong, HashSet<ulong>>`
   - Tracks which players dealt damage to each live victim (for assist calculation).
   - Cleared per victim on `OnEntityDeath`. Runtime-only.
+- `_lagswitchIncidents: Dictionary<ulong, List<LagSwitchIncident>>`
+  - Per-attacker list of detected lagswitch incidents (confidence above threshold). Runtime-only (not persisted).
+- `_lastDisconnectTime: Dictionary<ulong, float>`
+  - `Time.realtimeSinceStartup` when player last disconnected. Used in reconnect scoring.
+- `_connectionDropCount: Dictionary<ulong, int>`
+  - Total disconnects per player since plugin load.
 - `_telemetryQueue: List<ShotTelemetryEvent>`
   - In-memory buffer of shot, hit, kill, and death events.
   - Flushed on timer or when size reaches `TelemetryQueueMaxSize`.
@@ -186,6 +192,10 @@ Hooks:
 - `OnMogyAcPingBaselineUpdate(Dictionary<string, object> payload)`
   - Emitted once per player when ping baseline is first established (since 1.1.0).
   - Gated by `PublicApi.Enabled`.
+- `OnMogyAcLagswitchDetected(Dictionary<string, object> payload)`
+  - Emitted when a kill's lagswitch confidence score exceeds `LagswitchDetection.Threshold` (since 1.2.0).
+  - Gated by `PublicApi.Enabled`.
+  - Payload: `playerId`, `victimId`, `weaponShortName`, `confidence`, `pingAtKill`, `pingBaselineAvg`, `pingSpike`, `killAccuracy`, `wasHeadshot`, `distance`, `reconnectScore`, `timestampUtc`.
 
 ## Configuration Contract
 
@@ -221,6 +231,10 @@ If a weapon has no entry, history limit falls back to `40` during hit registrati
 - `/ac-stats [name]`
   - Admin-only.
   - Shows K/D/A, ping baseline, and per-weapon accuracy for a player.
+- `/ac-lagswitch-audit [name]`
+  - Admin-only.
+  - Shows lagswitch incident timeline with ping spike, kill quality, and reconnect scores.
+  - Flags pattern when ≥ `MinIncidentsForPattern` incidents within 24h exceed `PatternThreshold` confidence.
 - `/ac-lang <code>`
   - Admin-only.
   - Sets and persists `DefaultLanguage` in plugin config.

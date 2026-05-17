@@ -126,7 +126,7 @@ RFC:
 
 ## M7 - LagSwitch detekció
 
-Státusz: `Planned`
+Státusz: `Done`
 Célidő: 2027 Q1
 
 Cél:
