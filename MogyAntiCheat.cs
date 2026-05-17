@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Oxide.Core;
 using Oxide.Core.Configuration;
 using Oxide.Core.Libraries;
@@ -11,12 +12,12 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Mogy AntiCheat", "Mogy", "1.9.6")]
+    [Info("Mogy AntiCheat", "Mogy", "1.9.7")]
     [Description("Tracks weapon accuracy trends and dynamically reduces suspicious player damage using configurable thresholds and localized admin commands.")]
     public class MogyAntiCheat : RustPlugin
     {
         private const string DefaultLanguageFallback = "en";
-        private const string PublicApiVersionCurrent = "1.2.0";
+        private const string PublicApiVersionCurrent = "1.3.0";
         private const string DebugLogFileName = "MogyAntiCheat_Debug.log";
         private const float WebhookRateWindowSeconds = 1f;
         private const string PermissionAdmin = "mogyanticheat.admin";
@@ -38,6 +39,7 @@ namespace Oxide.Plugins
         private readonly Dictionary<ulong, PlayerPingStats> _playerPingStats = new Dictionary<ulong, PlayerPingStats>();
         private readonly Dictionary<ulong, PlayerKDAStats> _playerKDAStats = new Dictionary<ulong, PlayerKDAStats>();
         private readonly Dictionary<ulong, HashSet<ulong>> _damageContributors = new Dictionary<ulong, HashSet<ulong>>();
+        private readonly Dictionary<ulong, Dictionary<string, MLSuggestionCacheEntry>> _mlSuggestionCache = new Dictionary<ulong, Dictionary<string, MLSuggestionCacheEntry>>();
         private readonly Dictionary<ulong, List<LagSwitchIncident>> _lagswitchIncidents = new Dictionary<ulong, List<LagSwitchIncident>>();
         private readonly Dictionary<ulong, float> _lastDisconnectTime = new Dictionary<ulong, float>();
         private readonly Dictionary<ulong, int> _connectionDropCount = new Dictionary<ulong, int>();
@@ -106,7 +108,12 @@ namespace Oxide.Plugins
             ["LsIncidentReconnect"] = "  Reconnect score: {0:F2}",
             ["LsSummary"] = "Summary: {0} total | 24h: {1} | Avg confidence: {2:F2}",
             ["LsPatternWarning"] = "WARNING: Lagswitch pattern detected!",
-            ["HelpLagswitch"] = "/ac-lagswitch-audit [playerName] - Show lagswitch forensic timeline."
+            ["HelpLagswitch"] = "/ac-lagswitch-audit [playerName] - Show lagswitch forensic timeline.",
+            ["MLFeedbackUsage"] = "Usage: /ac-ml-feedback <playerName> <confirmed_cheater|false_positive|uncertain>",
+            ["MLFeedbackSent"] = "[MogyAC] ML feedback sent for {0}: {1}.",
+            ["MLFeedbackFailed"] = "[MogyAC] ML feedback send failed: service unavailable or not configured.",
+            ["MLServiceDisabled"] = "[MogyAC] ML service is not enabled or configured.",
+            ["HelpMLFeedback"] = "/ac-ml-feedback <player> <confirmed_cheater|false_positive|uncertain> - Submit feedback to ML service."
         };
 
         private static readonly Dictionary<string, string> MessagesHu = new Dictionary<string, string>
@@ -166,7 +173,12 @@ namespace Oxide.Plugins
             ["LsIncidentReconnect"] = "  Reconnect pontszám: {0:F2}",
             ["LsSummary"] = "Összefoglaló: {0} összesen | 24h: {1} | Átl. biztonság: {2:F2}",
             ["LsPatternWarning"] = "FIGYELEM: Lagswitch minta észlelve!",
-            ["HelpLagswitch"] = "/ac-lagswitch-audit [jatekosnev] - Lagswitch törvényszéki idővonal."
+            ["HelpLagswitch"] = "/ac-lagswitch-audit [jatekosnev] - Lagswitch törvényszéki idővonal.",
+            ["MLFeedbackUsage"] = "Használat: /ac-ml-feedback <jatekosnev> <confirmed_cheater|false_positive|uncertain>",
+            ["MLFeedbackSent"] = "[MogyAC] ML visszajelzés elküldve: {0} → {1}.",
+            ["MLFeedbackFailed"] = "[MogyAC] ML visszajelzés sikertelen: a szolgáltatás nem elérhető vagy nincs konfigurálva.",
+            ["MLServiceDisabled"] = "[MogyAC] Az ML szolgáltatás nincs engedélyezve vagy konfigurálva.",
+            ["HelpMLFeedback"] = "/ac-ml-feedback <jatekos> <confirmed_cheater|false_positive|uncertain> - Visszajelzés küldése az ML szolgáltatásnak."
         };
 
         private struct ShotResult
@@ -341,6 +353,18 @@ namespace Oxide.Plugins
             public int DeltaPingMs;
             public float AccuracyInWindow;
             public string EventType;
+        }
+
+        private class MLSuggestionCacheEntry
+        {
+            public long FetchedAtMs;
+            public float Confidence;
+            public int SuggestedNerfPct;
+            public string AnomalyType;
+            public string Reason;
+
+            public bool IsExpired(int cacheSeconds)
+                => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - FetchedAtMs > cacheSeconds * 1000L;
         }
 
         private class LagSwitchIncident
@@ -614,6 +638,15 @@ namespace Oxide.Plugins
                 ["PingSpikeMinimumMs"] = 50,
                 ["PreKillWindowMs"] = 1000
             };
+            Config["MLService"] = new Dictionary<string, object>
+            {
+                ["Enabled"] = false,
+                ["Endpoint"] = "",
+                ["AuthToken"] = "",
+                ["TimeoutSeconds"] = 5,
+                ["CacheSuggestionsSeconds"] = 60,
+                ["FallbackToLocalScoring"] = true
+            };
             SaveConfig();
         }
 
@@ -692,6 +725,26 @@ namespace Oxide.Plugins
                 if (!lsCfg.ContainsKey("PreKillWindowMs")) { lsCfg["PreKillWindowMs"] = 1000; changed = true; }
             }
 
+            var mlCfg = Config["MLService"] as Dictionary<string, object>;
+            if (mlCfg == null)
+            {
+                Config["MLService"] = new Dictionary<string, object>
+                {
+                    ["Enabled"] = false, ["Endpoint"] = "", ["AuthToken"] = "",
+                    ["TimeoutSeconds"] = 5, ["CacheSuggestionsSeconds"] = 60, ["FallbackToLocalScoring"] = true
+                };
+                changed = true;
+            }
+            else
+            {
+                if (!mlCfg.ContainsKey("Enabled")) { mlCfg["Enabled"] = false; changed = true; }
+                if (!mlCfg.ContainsKey("Endpoint")) { mlCfg["Endpoint"] = ""; changed = true; }
+                if (!mlCfg.ContainsKey("AuthToken")) { mlCfg["AuthToken"] = ""; changed = true; }
+                if (!mlCfg.ContainsKey("TimeoutSeconds")) { mlCfg["TimeoutSeconds"] = 5; changed = true; }
+                if (!mlCfg.ContainsKey("CacheSuggestionsSeconds")) { mlCfg["CacheSuggestionsSeconds"] = 60; changed = true; }
+                if (!mlCfg.ContainsKey("FallbackToLocalScoring")) { mlCfg["FallbackToLocalScoring"] = true; changed = true; }
+            }
+
             if (changed) SaveConfig();
         }
 
@@ -763,6 +816,34 @@ namespace Oxide.Plugins
             var cfg = Config["LagswitchDetection"] as Dictionary<string, object>;
             if (cfg == null || !cfg.ContainsKey("PreKillWindowMs")) return 1f;
             try { return Convert.ToSingle(cfg["PreKillWindowMs"]) / 1000f; } catch { return 1f; }
+        }
+
+        private bool IsMLServiceEnabled()
+        {
+            var cfg = Config["MLService"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("Enabled")) return false;
+            try { return Convert.ToBoolean(cfg["Enabled"]); } catch { return false; }
+        }
+
+        private string GetMLServiceEndpoint()
+        {
+            var cfg = Config["MLService"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("Endpoint")) return string.Empty;
+            return cfg["Endpoint"] != null ? cfg["Endpoint"].ToString().TrimEnd('/') : string.Empty;
+        }
+
+        private string GetMLServiceAuthToken()
+        {
+            var cfg = Config["MLService"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("AuthToken")) return string.Empty;
+            return cfg["AuthToken"] != null ? cfg["AuthToken"].ToString() : string.Empty;
+        }
+
+        private int GetMLServiceCacheSuggestionsSeconds()
+        {
+            var cfg = Config["MLService"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("CacheSuggestionsSeconds")) return 60;
+            try { return Convert.ToInt32(cfg["CacheSuggestionsSeconds"]); } catch { return 60; }
         }
 
         private string GetConfiguredDefaultLanguage()
@@ -1214,21 +1295,111 @@ namespace Oxide.Plugins
             var batch = _telemetryQueue.ToList();
             _telemetryQueue.Clear();
 
+            long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var batchPayload = new Dictionary<string, object>
+            {
+                ["server_id"] = ConVar.Server.hostname ?? "unknown",
+                ["timestamp"] = nowMs,
+                ["batch_id"] = $"batch_{nowMs}",
+                ["count"] = batch.Count,
+                ["events"] = batch
+            };
+
             try
             {
                 string logFile = Path.Combine(_runtimeDataDirectory, $"MogyAntiCheat_Events_{DateTime.UtcNow:yyyyMMdd}.log");
-                var batchPayload = new Dictionary<string, object>
-                {
-                    ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    ["count"] = batch.Count,
-                    ["events"] = batch
-                };
                 File.AppendAllText(logFile, JsonConvert.SerializeObject(batchPayload) + Environment.NewLine);
                 DebugLog($"Telemetry flushed: {batch.Count} events");
             }
             catch (Exception ex)
             {
                 DebugLog($"Telemetry flush failed: {ex.Message}");
+            }
+
+            if (IsMLServiceEnabled())
+                PostTelemetryToMLService(batchPayload);
+        }
+
+        private void PostTelemetryToMLService(Dictionary<string, object> batchPayload)
+        {
+            string endpoint = GetMLServiceEndpoint();
+            if (string.IsNullOrWhiteSpace(endpoint)) return;
+
+            string url = $"{endpoint}/ingest";
+            string body = JsonConvert.SerializeObject(batchPayload);
+            var headers = new Dictionary<string, string> { ["Content-Type"] = "application/json" };
+            string token = GetMLServiceAuthToken();
+            if (!string.IsNullOrWhiteSpace(token)) headers["Authorization"] = $"Bearer {token}";
+
+            try
+            {
+                webrequest.Enqueue(url, body, (code, response) =>
+                {
+                    if (code < 200 || code >= 300)
+                        DebugLog($"ML service ingest failed: code={code}");
+                    else
+                        DebugLog($"ML service ingest accepted: code={code}");
+                }, this, RequestMethod.POST, headers);
+            }
+            catch (Exception ex)
+            {
+                DebugLog($"ML service ingest request error: {ex.Message}");
+            }
+        }
+
+        private void FetchMLSuggestion(ulong playerId)
+        {
+            if (!IsMLServiceEnabled()) return;
+            string endpoint = GetMLServiceEndpoint();
+            if (string.IsNullOrWhiteSpace(endpoint)) return;
+
+            string url = $"{endpoint}/penalty-suggestion?player_id={playerId}";
+            var headers = new Dictionary<string, string> { ["Content-Type"] = "application/json" };
+            string token = GetMLServiceAuthToken();
+            if (!string.IsNullOrWhiteSpace(token)) headers["Authorization"] = $"Bearer {token}";
+
+            try
+            {
+                webrequest.Enqueue(url, null, (code, response) =>
+                {
+                    if (code < 200 || code >= 300 || string.IsNullOrWhiteSpace(response)) return;
+                    try
+                    {
+                        var jObj = JObject.Parse(response);
+                        var weaponsToken = jObj["weapons"] as JObject;
+                        if (weaponsToken == null) return;
+
+                        Dictionary<string, MLSuggestionCacheEntry> playerCache;
+                        if (!_mlSuggestionCache.TryGetValue(playerId, out playerCache))
+                        {
+                            playerCache = new Dictionary<string, MLSuggestionCacheEntry>();
+                            _mlSuggestionCache[playerId] = playerCache;
+                        }
+
+                        foreach (var prop in weaponsToken.Properties())
+                        {
+                            var wData = prop.Value as JObject;
+                            if (wData == null) continue;
+                            playerCache[prop.Name] = new MLSuggestionCacheEntry
+                            {
+                                FetchedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                                Confidence = wData["ml_confidence"]?.Value<float>() ?? 0f,
+                                SuggestedNerfPct = wData["suggested_nerf_pct"]?.Value<int>() ?? 0,
+                                AnomalyType = wData["anomaly_type"]?.Value<string>(),
+                                Reason = wData["explanation"]?.Value<string>()
+                            };
+                        }
+                        DebugLog($"ML suggestion cached for player {playerId}");
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugLog($"ML suggestion parse error: {ex.Message}");
+                    }
+                }, this, RequestMethod.GET, headers);
+            }
+            catch (Exception ex)
+            {
+                DebugLog($"ML suggestion fetch error: {ex.Message}");
             }
         }
 
@@ -1568,6 +1739,7 @@ namespace Oxide.Plugins
                 Interface.CallHook("OnMogyAcSuspicion", payload);
 
             EnqueueWebhookEvent("suspicion", payload);
+            FetchMLSuggestion(playerId);
         }
 
         private void EmitPenaltyEvent(BasePlayer attacker, BasePlayer target, string weaponName, float appliedMultiplier, float originalDamage, float scaledDamage, int pingAtEvent = 0)
@@ -1591,6 +1763,22 @@ namespace Oxide.Plugins
                 ["pingAnomaly"] = pingStats != null && pingStats.IsAnomalous(pingAtEvent, GetPingAnomalyThreshold()),
                 ["timestampUtc"] = DateTime.UtcNow.ToString("o")
             };
+
+            MLSuggestionCacheEntry mlEntry = null;
+            Dictionary<string, MLSuggestionCacheEntry> playerCache;
+            if (_mlSuggestionCache.TryGetValue(attacker.userID, out playerCache))
+            {
+                MLSuggestionCacheEntry entry;
+                if (playerCache.TryGetValue(weaponName, out entry) && !entry.IsExpired(GetMLServiceCacheSuggestionsSeconds()))
+                    mlEntry = entry;
+            }
+            if (mlEntry != null)
+            {
+                payload["mlConfidence"] = mlEntry.Confidence;
+                payload["mlSuggestedNerfPct"] = mlEntry.SuggestedNerfPct;
+                payload["mlAnomalyType"] = mlEntry.AnomalyType ?? string.Empty;
+                payload["mlApplied"] = true;
+            }
 
             DebugLog($"Penalty applied: attacker={attacker.displayName} ({attacker.userID}), weapon={weaponName}, mult={appliedMultiplier:F2}, dmg={originalDamage:F1}->{scaledDamage:F1}, ping={pingAtEvent}ms");
 
@@ -1902,6 +2090,41 @@ namespace Oxide.Plugins
             };
         }
 
+        object GetMLPenaltySuggestion(ulong playerId, string weapon)
+        {
+            Dictionary<string, MLSuggestionCacheEntry> playerCache;
+            if (!_mlSuggestionCache.TryGetValue(playerId, out playerCache)) return null;
+
+            string wKey = string.IsNullOrWhiteSpace(weapon) ? null : weapon;
+            if (wKey != null)
+            {
+                MLSuggestionCacheEntry entry;
+                if (!playerCache.TryGetValue(wKey, out entry) || entry.IsExpired(GetMLServiceCacheSuggestionsSeconds())) return null;
+                return new Dictionary<string, object>
+                {
+                    ["confidence"] = entry.Confidence,
+                    ["suggestedNerfPct"] = entry.SuggestedNerfPct,
+                    ["anomalyType"] = entry.AnomalyType ?? string.Empty,
+                    ["reason"] = entry.Reason ?? string.Empty
+                };
+            }
+
+            int cacheSeconds = GetMLServiceCacheSuggestionsSeconds();
+            var all = new Dictionary<string, object>();
+            foreach (var kv in playerCache)
+            {
+                if (!kv.Value.IsExpired(cacheSeconds))
+                    all[kv.Key] = new Dictionary<string, object>
+                    {
+                        ["confidence"] = kv.Value.Confidence,
+                        ["suggestedNerfPct"] = kv.Value.SuggestedNerfPct,
+                        ["anomalyType"] = kv.Value.AnomalyType ?? string.Empty,
+                        ["reason"] = kv.Value.Reason ?? string.Empty
+                    };
+            }
+            return all.Count > 0 ? (object)all : null;
+        }
+
         object GetLagswitchStats(ulong playerId)
         {
             List<LagSwitchIncident> incidents;
@@ -2049,6 +2272,7 @@ namespace Oxide.Plugins
                 _lagswitchIncidents.Remove(target.userID);
                 _lastDisconnectTime.Remove(target.userID);
                 _connectionDropCount.Remove(target.userID);
+                _mlSuggestionCache.Remove(target.userID);
                 SendReply(player, $"<color=#55ff55>{Msg(player, "StatsResetSuccess", target.displayName)}</color>");
             }
             else
@@ -2161,6 +2385,57 @@ namespace Oxide.Plugins
                 SendReply(player, Msg(player, "WhyNoConfig", weaponName));
         }
 
+        [ChatCommand("ac-ml-feedback")]
+        void CmdAcMLFeedback(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+            if (args.Length < 2) { SendReply(player, Msg(player, "MLFeedbackUsage")); return; }
+
+            if (!IsMLServiceEnabled() || string.IsNullOrWhiteSpace(GetMLServiceEndpoint()))
+            {
+                SendReply(player, Msg(player, "MLServiceDisabled"));
+                return;
+            }
+
+            BasePlayer target = BasePlayer.Find(args[0]);
+            if (target == null) { SendReply(player, Msg(player, "PlayerNotFound")); return; }
+
+            string outcome = args[1].ToLowerInvariant();
+            if (outcome != "confirmed_cheater" && outcome != "false_positive" && outcome != "uncertain")
+            {
+                SendReply(player, Msg(player, "MLFeedbackUsage"));
+                return;
+            }
+
+            string endpoint = $"{GetMLServiceEndpoint()}/feedback";
+            var feedbackPayload = new Dictionary<string, object>
+            {
+                ["player_id"] = target.userID.ToString(),
+                ["outcome"] = outcome,
+                ["feedback_timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                ["admin_comment"] = $"Submitted by {player.displayName}"
+            };
+            string body = JsonConvert.SerializeObject(feedbackPayload);
+            var headers = new Dictionary<string, string> { ["Content-Type"] = "application/json" };
+            string token = GetMLServiceAuthToken();
+            if (!string.IsNullOrWhiteSpace(token)) headers["Authorization"] = $"Bearer {token}";
+
+            try
+            {
+                webrequest.Enqueue(endpoint, body, (code, response) =>
+                {
+                    if (code >= 200 && code < 300)
+                        SendReply(player, Msg(player, "MLFeedbackSent", target.displayName, outcome));
+                    else
+                        SendReply(player, Msg(player, "MLFeedbackFailed"));
+                }, this, RequestMethod.POST, headers);
+            }
+            catch
+            {
+                SendReply(player, Msg(player, "MLFeedbackFailed"));
+            }
+        }
+
         [ChatCommand("ac-lagswitch-audit")]
         void CmdAcLagswitchAudit(BasePlayer player, string command, string[] args)
         {
@@ -2230,6 +2505,7 @@ namespace Oxide.Plugins
             report += Msg(player, "HelpDebugLog") + "\n";
             report += Msg(player, "HelpWhy") + "\n";
             report += Msg(player, "HelpLagswitch") + "\n";
+            report += Msg(player, "HelpMLFeedback") + "\n";
             report += Msg(player, "HelpHelp");
             SendReply(player, report);
         }

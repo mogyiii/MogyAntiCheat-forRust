@@ -1,12 +1,12 @@
 # MogyAntiCheat Public API
 
 This document defines the public extension contract for external plugins.
-Current state: `Implemented` (milestone M7 baseline).
+Current state: `Implemented` (milestone M8 baseline).
 
 ## Versioning
 
 - Config key: `PublicApi.ApiVersion`
-- Current default: `1.2.0`
+- Current default: `1.3.0`
 - Method: `GetApiVersion()`
 
 Version policy:
@@ -58,6 +58,10 @@ Payload fields:
 - `int pingAtEvent` — attacker's ping at the moment damage was processed
 - `double pingBaselineAvg` — attacker's EMA ping baseline (0 if no baseline yet)
 - `bool pingAnomaly` — true if `pingAtEvent` is a statistically anomalous spike relative to baseline
+- `float mlConfidence` — ML model confidence for this player+weapon (0.0 if ML disabled or no data)
+- `int mlSuggestedNerfPct` — ML suggested damage reduction percentage (0 if ML disabled or no data)
+- `string mlAnomalyType` — ML anomaly label, or `null`
+- `bool mlApplied` — `true` if the ML suggestion was factored into the applied multiplier
 - `string timestampUtc` (ISO-8601 UTC)
 
 ---
@@ -184,6 +188,21 @@ Returns:
 
 ---
 
+### `GetMLPenaltySuggestion(ulong playerId, string weapon)`
+
+Purpose:
+- Retrieve the most recent cached ML confidence score for one player+weapon pair.
+
+Returns:
+- `null` when ML service is disabled, no cached entry exists, or the cached entry has expired.
+- Otherwise a `Dictionary<string, object>` with:
+  - `mlConfidence` (`float`) — ML model confidence score [0.0–1.0]
+  - `mlSuggestedNerfPct` (`int`) — suggested damage reduction percentage (0 = no nerf)
+  - `mlAnomalyType` (`string`) — anomaly category label, or `null`
+  - `mlReason` (`string`) — human-readable explanation from the ML service
+
+---
+
 ## Config Controls
 
 Under `PublicApi`:
@@ -198,6 +217,14 @@ Under `PingMonitoring`:
 
 Under `KDATracking`:
 - `Enabled` (`bool`) — controls whether K/D/A and assist tracking run.
+
+Under `MLService`:
+- `Enabled` (`bool`) — global ML service gate; all ML calls are skipped when `false`.
+- `Endpoint` (`string`) — base URL of the ML service (e.g. `http://ml-service:8080`).
+- `AuthToken` (`string`) — sent as `Authorization: Bearer <token>`; leave empty to disable auth.
+- `TimeoutSeconds` (`int`) — HTTP request timeout for ML calls.
+- `CacheSuggestionsSeconds` (`int`) — how long penalty suggestions are cached per player+weapon.
+- `FallbackToLocalScoring` (`bool`) — when `true`, built-in heuristics run normally if ML is unavailable.
 
 ---
 

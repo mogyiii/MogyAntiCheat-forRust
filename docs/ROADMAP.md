@@ -151,7 +151,7 @@ RFC:
 
 ## M8 - ML/Neural Network Service Module
 
-Status: `Planned`
+Status: `Done`
 Target: Q2 2027+
 
 Goal:

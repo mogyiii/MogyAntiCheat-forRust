@@ -152,7 +152,7 @@ RFC:
 
 ## M8 - ML/Neurális hálózat szerviz modul
 
-Státusz: `Planned`
+Státusz: `Done`
 Célidő: 2027 Q2+
 
 Cél:

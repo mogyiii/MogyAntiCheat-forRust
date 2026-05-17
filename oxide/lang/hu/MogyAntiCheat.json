@@ -52,6 +52,11 @@
   "HelpDebugLog": "/ac-debug-log [clear] - Debug log fájl útvonala vagy törlése.",
   "HelpWhy": "/ac-why [weapon|active] - Megmutatja, miért (nem) aktív a nerf.",
   "HelpStats": "/ac-stats [jatekosnev] - K/D/A és ping statisztika egy játékosról.",
+  "MLFeedbackUsage": "Használat: /ac-ml-feedback <játékosnév> <confirmed_cheater|false_positive|uncertain>",
+  "MLFeedbackSent": "[MogyAC] ML visszajelzés elküldve {0}-nak: {1}.",
+  "MLFeedbackFailed": "[MogyAC] ML visszajelzés küldése sikertelen: a szolgáltatás nem elérhető vagy nincs konfigurálva.",
+  "MLServiceDisabled": "[MogyAC] Az ML szolgáltatás nincs engedélyezve vagy konfigurálva.",
   "HelpLagswitch": "/ac-lagswitch-audit [jatekosnev] - Lagswitch törvényszéki idővonal.",
+  "HelpMLFeedback": "/ac-ml-feedback <játékos> <confirmed_cheater|false_positive|uncertain> - Visszajelzés küldése az ML szolgáltatásnak.",
   "HelpHelp": "/ac-help - Ez a parancslista."
 }

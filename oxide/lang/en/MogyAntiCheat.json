@@ -42,6 +42,10 @@
   "LsIncidentReconnect": "  Reconnect score: {0:F2}",
   "LsSummary": "Summary: {0} total | 24h: {1} | Avg confidence: {2:F2}",
   "LsPatternWarning": "WARNING: Lagswitch pattern detected!",
+  "MLFeedbackUsage": "Usage: /ac-ml-feedback <playerName> <confirmed_cheater|false_positive|uncertain>",
+  "MLFeedbackSent": "[MogyAC] ML feedback sent for {0}: {1}.",
+  "MLFeedbackFailed": "[MogyAC] ML feedback send failed: service unavailable or not configured.",
+  "MLServiceDisabled": "[MogyAC] ML service is not enabled or configured.",
   "HelpHeader": "=== MogyAC COMMANDS ===",
   "HelpCheck": "/ac-check [playerName] - Show detailed anti-cheat stats for a player.",
   "HelpList": "/ac-list - List online players with average accuracy and damage multiplier.",
@@ -53,5 +57,6 @@
   "HelpWhy": "/ac-why [weapon|active] - Explain why nerf is or is not applied.",
   "HelpStats": "/ac-stats [playerName] - Show K/D/A and ping stats for a player.",
   "HelpLagswitch": "/ac-lagswitch-audit [playerName] - Show lagswitch forensic timeline.",
+  "HelpMLFeedback": "/ac-ml-feedback <player> <confirmed_cheater|false_positive|uncertain> - Submit feedback to ML service.",
   "HelpHelp": "/ac-help - Show this command list."
 }

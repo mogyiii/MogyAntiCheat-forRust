@@ -1,6 +1,6 @@
 # MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.6).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.7).
 
 ## Purpose
 
@@ -60,6 +60,11 @@ Out of scope:
 - `_telemetryQueue: List<ShotTelemetryEvent>`
   - In-memory buffer of shot, hit, kill, and death events.
   - Flushed on timer or when size reaches `TelemetryQueueMaxSize`.
+- `_mlSuggestionCache: Dictionary<ulong, Dictionary<string, MLSuggestionCacheEntry>>`
+  - Per-player, per-weapon cached ML confidence scores fetched from the ML service.
+  - Each entry holds `FetchedAtMs`, `Confidence`, `SuggestedNerfPct`, `AnomalyType`, `Reason`.
+  - Entries are considered expired after `MLService.CacheSuggestionsSeconds` seconds.
+  - Runtime-only (not persisted).
 
 Persistence:
 
@@ -197,6 +202,11 @@ Hooks:
   - Gated by `PublicApi.Enabled`.
   - Payload: `playerId`, `victimId`, `weaponShortName`, `confidence`, `pingAtKill`, `pingBaselineAvg`, `pingSpike`, `killAccuracy`, `wasHeadshot`, `distance`, `reconnectScore`, `timestampUtc`.
 
+Query method (since 1.3.0):
+- `GetMLPenaltySuggestion(ulong playerId, string weapon)` → cached ML suggestion or `null`.
+  - Returns `Dictionary<string, object>` with `mlConfidence`, `mlSuggestedNerfPct`, `mlAnomalyType`, `mlReason` when a cached entry exists for the player+weapon.
+  - Returns `null` if the ML service is disabled, no data is cached, or the cache entry has expired.
+
 ## Configuration Contract
 
 Top-level keys:
@@ -207,6 +217,13 @@ Top-level keys:
 - `DebugMode` (bool, default `false`)
 - `PublicApi` (object)
 - `Webhook` (object)
+- `MLService` (object)
+  - `Enabled` (bool, default `false`)
+  - `Endpoint` (string, default `""`) — base URL of ML service, e.g. `http://ml-service:8080`
+  - `AuthToken` (string, default `""`) — sent as `Authorization: Bearer <token>`
+  - `TimeoutSeconds` (int, default `5`)
+  - `CacheSuggestionsSeconds` (int, default `60`)
+  - `FallbackToLocalScoring` (bool, default `true`) — if `true`, plugin scoring runs normally when ML is unavailable
 
 Each weapon requires:
 
@@ -245,6 +262,10 @@ If a weapon has no entry, history limit falls back to `40` during hit registrati
 - `/ac-weapon <weapon|active> <MaxAccuracy|SampleCount|SafeDistance> <value>`
   - Admin-only.
   - Updates `Weapons` thresholds in-game and persists config.
+- `/ac-ml-feedback <playerName> <confirmed_cheater|false_positive|uncertain>`
+  - Admin-only.
+  - Sends outcome feedback to the configured ML service endpoint (`POST /feedback`).
+  - No-op (with error message) when `MLService.Enabled` is `false` or endpoint is not configured.
 
 ## Known Constraints
 

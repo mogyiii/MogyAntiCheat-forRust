@@ -1,6 +1,6 @@
 # RFC-0008: ML/Neural Network Service Module
 
-Status: `Draft`
+Status: `Accepted`
 Owner: `Szabó Máté`
 Created: `2026-05-15`
 Target Milestone: `M8`
