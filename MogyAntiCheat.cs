@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Mogy AntiCheat", "Mogy", "1.9.7")]
+    [Info("Mogy AntiCheat", "Mogy", "1.9.8")]
     [Description("Tracks weapon accuracy trends and dynamically reduces suspicious player damage using configurable thresholds and localized admin commands.")]
     public class MogyAntiCheat : RustPlugin
     {
@@ -44,6 +44,8 @@ namespace Oxide.Plugins
         private readonly Dictionary<ulong, float> _lastDisconnectTime = new Dictionary<ulong, float>();
         private readonly Dictionary<ulong, int> _connectionDropCount = new Dictionary<ulong, int>();
         private readonly List<ShotTelemetryEvent> _telemetryQueue = new List<ShotTelemetryEvent>();
+        private readonly Dictionary<ulong, float> _manualOverrides = new Dictionary<ulong, float>();
+        private readonly List<OverrideAuditEntry> _overrideAuditLog = new List<OverrideAuditEntry>();
         private readonly Queue<WebhookEnvelope> _webhookQueue = new Queue<WebhookEnvelope>();
         private Timer _webhookPumpTimer;
         private Timer _telemetryFlushTimer;
@@ -113,7 +115,35 @@ namespace Oxide.Plugins
             ["MLFeedbackSent"] = "[MogyAC] ML feedback sent for {0}: {1}.",
             ["MLFeedbackFailed"] = "[MogyAC] ML feedback send failed: service unavailable or not configured.",
             ["MLServiceDisabled"] = "[MogyAC] ML service is not enabled or configured.",
-            ["HelpMLFeedback"] = "/ac-ml-feedback <player> <confirmed_cheater|false_positive|uncertain> - Submit feedback to ML service."
+            ["HelpMLFeedback"] = "/ac-ml-feedback <player> <confirmed_cheater|false_positive|uncertain> - Submit feedback to ML service.",
+            ["DashboardHeader"] = "=== MogyAC DASHBOARD ===",
+            ["DashboardNoPlayers"] = "No tracked players.",
+            ["DashboardRow"] = "{0} | Nerf: {1:P0} | Ping: {2:F0}ms | LS: {3} | K/D/A: {4}/{5}/{6} | Override: {7}",
+            ["OverrideUsage"] = "Usage: /ac-override <playerName> <0-100|off>",
+            ["OverrideSet"] = "[MogyAC] Override set for {0}: {1}% damage reduction.",
+            ["OverrideCleared"] = "[MogyAC] Override cleared for {0}.",
+            ["OverrideInvalidValue"] = "Invalid value: '{0}'. Use 0-100 (percent reduction) or 'off'.",
+            ["ChartUsage"] = "Usage: /ac-chart <playerName> <accuracy|ping|kda>",
+            ["ChartHeader"] = "=== {0} | {1} ===",
+            ["ChartNoData"] = "No chart data available for {0}.",
+            ["ExportUsage"] = "Usage: /ac-export csv",
+            ["ExportDone"] = "[MogyAC] Export written: {0} ({1} rows)",
+            ["ExportEmpty"] = "[MogyAC] No data to export.",
+            ["ConfigTuneUsage"] = "Usage: /ac-config-tune <MissExpirySeconds|LagswitchDetection.Threshold|PingMonitoring.AnomalyThresholdStdDev> <value>",
+            ["ConfigTuneUpdated"] = "[MogyAC] Config updated: {0} = {1} (was: {2}).",
+            ["ConfigTuneInvalidParam"] = "Unknown parameter: '{0}'.",
+            ["ConfigTuneInvalidValue"] = "Invalid value for {0}: '{1}'.",
+            ["SuggestHeader"] = "=== ML Config Recommendations ===",
+            ["SuggestNoService"] = "[MogyAC] ML service is not configured or unavailable.",
+            ["SuggestRow"] = "  {0}: {1} → {2} (confidence: {3:P0})",
+            ["SuggestNoChanges"] = "No config changes recommended.",
+            ["SuggestFetching"] = "[MogyAC] Fetching ML recommendations...",
+            ["HelpDashboard"] = "/ac-dashboard - Live view of all tracked players.",
+            ["HelpOverride"] = "/ac-override <player> <0-100|off> - Set manual damage reduction for a player.",
+            ["HelpChart"] = "/ac-chart <player> <accuracy|ping|kda> - ASCII chart of player metric.",
+            ["HelpExport"] = "/ac-export csv - Export all player stats to CSV file.",
+            ["HelpConfigTune"] = "/ac-config-tune <param> <value> - Adjust a config parameter live.",
+            ["HelpSuggest"] = "/ac-suggest - Query ML service for config recommendations."
         };
 
         private static readonly Dictionary<string, string> MessagesHu = new Dictionary<string, string>
@@ -178,7 +208,35 @@ namespace Oxide.Plugins
             ["MLFeedbackSent"] = "[MogyAC] ML visszajelzés elküldve: {0} → {1}.",
             ["MLFeedbackFailed"] = "[MogyAC] ML visszajelzés sikertelen: a szolgáltatás nem elérhető vagy nincs konfigurálva.",
             ["MLServiceDisabled"] = "[MogyAC] Az ML szolgáltatás nincs engedélyezve vagy konfigurálva.",
-            ["HelpMLFeedback"] = "/ac-ml-feedback <jatekos> <confirmed_cheater|false_positive|uncertain> - Visszajelzés küldése az ML szolgáltatásnak."
+            ["HelpMLFeedback"] = "/ac-ml-feedback <jatekos> <confirmed_cheater|false_positive|uncertain> - Visszajelzés küldése az ML szolgáltatásnak.",
+            ["DashboardHeader"] = "=== MogyAC IRÁNYÍTÓPULT ===",
+            ["DashboardNoPlayers"] = "Nincs követett játékos.",
+            ["DashboardRow"] = "{0} | Nerf: {1:P0} | Ping: {2:F0}ms | LS: {3} | K/D/A: {4}/{5}/{6} | Felülbírálat: {7}",
+            ["OverrideUsage"] = "Használat: /ac-override <játékosnév> <0-100|off>",
+            ["OverrideSet"] = "[MogyAC] Felülbírálat beállítva {0}-nak: {1}% sebzéscsökkentés.",
+            ["OverrideCleared"] = "[MogyAC] Felülbírálat törölve: {0}.",
+            ["OverrideInvalidValue"] = "Érvénytelen érték: '{0}'. Használj 0-100 számot (%-os csökkentés) vagy 'off'-ot.",
+            ["ChartUsage"] = "Használat: /ac-chart <játékosnév> <accuracy|ping|kda>",
+            ["ChartHeader"] = "=== {0} | {1} ===",
+            ["ChartNoData"] = "Nincs diagram adat: {0}.",
+            ["ExportUsage"] = "Használat: /ac-export csv",
+            ["ExportDone"] = "[MogyAC] Exportálva: {0} ({1} sor)",
+            ["ExportEmpty"] = "[MogyAC] Nincs exportálható adat.",
+            ["ConfigTuneUsage"] = "Használat: /ac-config-tune <MissExpirySeconds|LagswitchDetection.Threshold|PingMonitoring.AnomalyThresholdStdDev> <érték>",
+            ["ConfigTuneUpdated"] = "[MogyAC] Konfiguráció frissítve: {0} = {1} (volt: {2}).",
+            ["ConfigTuneInvalidParam"] = "Ismeretlen paraméter: '{0}'.",
+            ["ConfigTuneInvalidValue"] = "Érvénytelen érték ehhez: {0}: '{1}'.",
+            ["SuggestHeader"] = "=== ML Konfigurációs Javaslatok ===",
+            ["SuggestNoService"] = "[MogyAC] Az ML szolgáltatás nincs konfigurálva vagy nem elérhető.",
+            ["SuggestRow"] = "  {0}: {1} → {2} (megbízhatóság: {3:P0})",
+            ["SuggestNoChanges"] = "Nincs konfigurációs változtatási javaslat.",
+            ["SuggestFetching"] = "[MogyAC] ML javaslatok lekérése...",
+            ["HelpDashboard"] = "/ac-dashboard - Élő nézet az összes követett játékosról.",
+            ["HelpOverride"] = "/ac-override <jatekos> <0-100|off> - Manuális sebzéscsökkentés beállítása.",
+            ["HelpChart"] = "/ac-chart <jatekos> <accuracy|ping|kda> - ASCII diagram egy játékos metrikájáról.",
+            ["HelpExport"] = "/ac-export csv - Összes játékos stat exportálása CSV fájlba.",
+            ["HelpConfigTune"] = "/ac-config-tune <param> <ertek> - Konfiguráció élő módosítása.",
+            ["HelpSuggest"] = "/ac-suggest - ML szerviz konfigurációs javaslatok lekérése."
         };
 
         private struct ShotResult
@@ -365,6 +423,17 @@ namespace Oxide.Plugins
 
             public bool IsExpired(int cacheSeconds)
                 => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - FetchedAtMs > cacheSeconds * 1000L;
+        }
+
+        private class OverrideAuditEntry
+        {
+            public string TimestampUtc;
+            public ulong AdminId;
+            public string AdminName;
+            public ulong TargetId;
+            public string TargetName;
+            public string OldValue;
+            public string NewValue;
         }
 
         private class LagSwitchIncident
@@ -1547,7 +1616,11 @@ namespace Oxide.Plugins
             ProcessSuspicionTransition(attacker, wName, evaluation);
 
             float globalNerf = GetLowestNerf(attacker.userID);
-            bool shouldApplyNerfToAttacker = !HasBypass(attacker) || debugMode;
+            float manualOverrideMultiplier;
+            bool hasManualOverride = _manualOverrides.TryGetValue(attacker.userID, out manualOverrideMultiplier);
+            if (hasManualOverride)
+                globalNerf = Math.Min(globalNerf, manualOverrideMultiplier);
+            bool shouldApplyNerfToAttacker = hasManualOverride || !HasBypass(attacker) || debugMode;
             if (debugMode)
             {
                 DebugLog($"Damage check: attacker={attacker.displayName} ({attacker.userID}), weapon={wName}, acc={evaluation.Accuracy:P2}, max={evaluation.MaxAccuracy:P2}, ping={ping}ms, globalNerf={globalNerf:P2}");
@@ -2273,6 +2346,7 @@ namespace Oxide.Plugins
                 _lastDisconnectTime.Remove(target.userID);
                 _connectionDropCount.Remove(target.userID);
                 _mlSuggestionCache.Remove(target.userID);
+                _manualOverrides.Remove(target.userID);
                 SendReply(player, $"<color=#55ff55>{Msg(player, "StatsResetSuccess", target.displayName)}</color>");
             }
             else
@@ -2489,6 +2563,395 @@ namespace Oxide.Plugins
             SendReply(player, report);
         }
 
+        [ChatCommand("ac-dashboard")]
+        void CmdAcDashboard(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+
+            var rows = new System.Text.StringBuilder();
+            rows.AppendLine($"<color=#55ff55>{Msg(player, "DashboardHeader")}</color>");
+
+            bool any = false;
+            foreach (var kv in _playerStats)
+            {
+                ulong pid = kv.Key;
+                float nerf = GetLowestNerf(pid);
+
+                PlayerPingStats ps;
+                _playerPingStats.TryGetValue(pid, out ps);
+                double pingAvg = ps != null ? ps.EMA : 0.0;
+
+                PlayerKDAStats kda;
+                _playerKDAStats.TryGetValue(pid, out kda);
+                int kills = kda != null ? kda.Kills : 0;
+                int deaths = kda != null ? kda.Deaths : 0;
+                int assists = kda != null ? kda.Assists : 0;
+
+                List<LagSwitchIncident> incidents;
+                _lagswitchIncidents.TryGetValue(pid, out incidents);
+                int lsCount = incidents != null ? incidents.Count : 0;
+
+                float manualMult;
+                string overrideStr = _manualOverrides.TryGetValue(pid, out manualMult)
+                    ? $"{(1f - manualMult) * 100f:F0}%"
+                    : "-";
+
+                BasePlayer online = BasePlayer.FindByID(pid);
+                string name = online != null ? online.displayName : pid.ToString();
+
+                rows.AppendLine(Msg(player, "DashboardRow", name, nerf, pingAvg, lsCount, kills, deaths, assists, overrideStr));
+                any = true;
+            }
+
+            if (!any) rows.AppendLine(Msg(player, "DashboardNoPlayers"));
+            SendReply(player, rows.ToString());
+        }
+
+        [ChatCommand("ac-override")]
+        void CmdAcOverride(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+            if (args.Length < 2) { SendReply(player, Msg(player, "OverrideUsage")); return; }
+
+            BasePlayer target = BasePlayer.Find(args[0]);
+            if (target == null) { SendReply(player, Msg(player, "PlayerNotFound")); return; }
+
+            string valArg = args[1].Trim().ToLowerInvariant();
+            string oldValue;
+            float existingMult;
+            oldValue = _manualOverrides.TryGetValue(target.userID, out existingMult)
+                ? $"{(1f - existingMult) * 100f:F0}%"
+                : "auto";
+
+            if (valArg == "off")
+            {
+                _manualOverrides.Remove(target.userID);
+                _overrideAuditLog.Add(new OverrideAuditEntry
+                {
+                    TimestampUtc = DateTime.UtcNow.ToString("O"),
+                    AdminId = player.userID,
+                    AdminName = player.displayName,
+                    TargetId = target.userID,
+                    TargetName = target.displayName,
+                    OldValue = oldValue,
+                    NewValue = "auto"
+                });
+                SendReply(player, Msg(player, "OverrideCleared", target.displayName));
+                return;
+            }
+
+            int pct;
+            if (!int.TryParse(valArg, out pct) || pct < 0 || pct > 100)
+            {
+                SendReply(player, Msg(player, "OverrideInvalidValue", args[1]));
+                return;
+            }
+
+            float multiplier = 1f - (pct / 100f);
+            _manualOverrides[target.userID] = multiplier;
+            _overrideAuditLog.Add(new OverrideAuditEntry
+            {
+                TimestampUtc = DateTime.UtcNow.ToString("O"),
+                AdminId = player.userID,
+                AdminName = player.displayName,
+                TargetId = target.userID,
+                TargetName = target.displayName,
+                OldValue = oldValue,
+                NewValue = $"{pct}%"
+            });
+            SendReply(player, Msg(player, "OverrideSet", target.displayName, pct));
+        }
+
+        [ChatCommand("ac-chart")]
+        void CmdAcChart(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+            if (args.Length < 2) { SendReply(player, Msg(player, "ChartUsage")); return; }
+
+            BasePlayer target = BasePlayer.Find(args[0]);
+            if (target == null) { SendReply(player, Msg(player, "PlayerNotFound")); return; }
+
+            string metric = args[1].Trim().ToLowerInvariant();
+            string header = Msg(player, "ChartHeader", target.displayName, metric);
+
+            if (metric == "accuracy")
+            {
+                Dictionary<string, WeaponData> weapons;
+                if (!_playerStats.TryGetValue(target.userID, out weapons) || weapons.Count == 0)
+                {
+                    SendReply(player, $"{header}\n{Msg(player, "ChartNoData", target.displayName)}");
+                    return;
+                }
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"<color=#55ff55>{header}</color>");
+                foreach (var wkv in weapons)
+                {
+                    var hist = wkv.Value.History;
+                    if (hist.Count == 0) continue;
+
+                    int segments = Math.Min(10, hist.Count);
+                    int segSize = hist.Count / segments;
+                    var bars = new List<float>();
+                    for (int i = 0; i < segments; i++)
+                    {
+                        int start = i * segSize;
+                        int end = (i == segments - 1) ? hist.Count : start + segSize;
+                        int hits = 0;
+                        for (int j = start; j < end; j++) if (hist[j].IsHit) hits++;
+                        bars.Add((float)hits / (end - start));
+                    }
+
+                    sb.Append($"  {wkv.Key}: ");
+                    foreach (float v in bars)
+                    {
+                        if (v >= 0.75f) sb.Append("█");
+                        else if (v >= 0.50f) sb.Append("▓");
+                        else if (v >= 0.25f) sb.Append("▒");
+                        else sb.Append("░");
+                    }
+                    sb.AppendLine($" {wkv.Value.GetAccuracy():P0} ({hist.Count} shots)");
+                }
+                SendReply(player, sb.ToString());
+            }
+            else if (metric == "ping")
+            {
+                PlayerPingStats ps;
+                if (!_playerPingStats.TryGetValue(target.userID, out ps) || ps.SampleCount == 0)
+                {
+                    SendReply(player, $"{header}\n{Msg(player, "ChartNoData", target.displayName)}");
+                    return;
+                }
+
+                int barWidth = 20;
+                int range = ps.Max - ps.Min;
+                if (range <= 0) range = 1;
+                int avgPos = (int)((ps.EMA - ps.Min) / range * barWidth);
+                avgPos = Math.Max(0, Math.Min(barWidth - 1, avgPos));
+
+                var bar = new char[barWidth];
+                for (int i = 0; i < barWidth; i++) bar[i] = '─';
+                bar[0] = '[';
+                bar[barWidth - 1] = ']';
+                if (avgPos > 0 && avgPos < barWidth - 1) bar[avgPos] = '▲';
+
+                string sb2 = $"<color=#55ff55>{header}</color>\n"
+                    + $"  Min: {ps.Min}ms  Avg: {ps.EMA:F0}ms  Max: {ps.Max}ms  StdDev: {ps.StdDev:F1}ms\n"
+                    + $"  {new string(bar)}\n"
+                    + $"  Samples: {ps.SampleCount}  Anomalies: {ps.AnomalyCount}";
+                SendReply(player, sb2);
+            }
+            else if (metric == "kda")
+            {
+                PlayerKDAStats kda;
+                if (!_playerKDAStats.TryGetValue(target.userID, out kda))
+                {
+                    SendReply(player, $"{header}\n{Msg(player, "ChartNoData", target.displayName)}");
+                    return;
+                }
+
+                int maxVal = Math.Max(1, Math.Max(kda.Kills, Math.Max(kda.Deaths, kda.Assists)));
+                int barMax = 15;
+                string kBar = new string('█', (int)((float)kda.Kills / maxVal * barMax));
+                string dBar = new string('█', (int)((float)kda.Deaths / maxVal * barMax));
+                string aBar = new string('█', (int)((float)kda.Assists / maxVal * barMax));
+                float kdr = kda.Deaths > 0 ? (float)kda.Kills / kda.Deaths : kda.Kills;
+
+                string result = $"<color=#55ff55>{header}</color>\n"
+                    + $"  K {kBar} {kda.Kills}\n"
+                    + $"  D {dBar} {kda.Deaths}\n"
+                    + $"  A {aBar} {kda.Assists}\n"
+                    + $"  KDR: {kdr:F2}";
+                SendReply(player, result);
+            }
+            else
+            {
+                SendReply(player, Msg(player, "ChartUsage"));
+            }
+        }
+
+        [ChatCommand("ac-export")]
+        void CmdAcExport(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+            if (args.Length == 0 || args[0].Trim().ToLowerInvariant() != "csv") { SendReply(player, Msg(player, "ExportUsage")); return; }
+
+            if (_playerStats.Count == 0) { SendReply(player, Msg(player, "ExportEmpty")); return; }
+
+            var csv = new System.Text.StringBuilder();
+            csv.AppendLine("player_id,weapon,accuracy,shots,hits,global_nerf,manual_override,kills,deaths,assists,ping_avg,ping_stddev,ping_anomalies,ls_incidents");
+
+            int rows = 0;
+            foreach (var kv in _playerStats)
+            {
+                ulong pid = kv.Key;
+                float globalNerf = GetLowestNerf(pid);
+
+                PlayerKDAStats kda;
+                _playerKDAStats.TryGetValue(pid, out kda);
+                int kills = kda != null ? kda.Kills : 0;
+                int deaths = kda != null ? kda.Deaths : 0;
+                int assists = kda != null ? kda.Assists : 0;
+
+                PlayerPingStats ps;
+                _playerPingStats.TryGetValue(pid, out ps);
+                double pingAvg = ps != null ? ps.EMA : 0.0;
+                double pingStdDev = ps != null ? ps.StdDev : 0.0;
+                int anomalies = ps != null ? ps.AnomalyCount : 0;
+
+                List<LagSwitchIncident> incidents;
+                _lagswitchIncidents.TryGetValue(pid, out incidents);
+                int lsCount = incidents != null ? incidents.Count : 0;
+
+                float manualMult;
+                string overrideStr = _manualOverrides.TryGetValue(pid, out manualMult)
+                    ? $"{(1f - manualMult) * 100f:F0}"
+                    : "";
+
+                foreach (var wkv in kv.Value)
+                {
+                    int shots = wkv.Value.History.Count;
+                    int hits = wkv.Value.History.Count(x => x.IsHit);
+                    float acc = wkv.Value.GetAccuracy();
+                    csv.AppendLine($"{pid},{wkv.Key},{acc:F4},{shots},{hits},{globalNerf:F4},{overrideStr},{kills},{deaths},{assists},{pingAvg:F1},{pingStdDev:F1},{anomalies},{lsCount}");
+                    rows++;
+                }
+            }
+
+            string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            string fileName = $"MogyAntiCheat_Export_{timestamp}.csv";
+            string filePath = System.IO.Path.Combine(_runtimeDataDirectory, fileName);
+            try
+            {
+                System.IO.File.WriteAllText(filePath, csv.ToString(), System.Text.Encoding.UTF8);
+                SendReply(player, Msg(player, "ExportDone", filePath, rows));
+            }
+            catch (Exception ex)
+            {
+                SendReply(player, $"[MogyAC] Export failed: {ex.Message}");
+            }
+        }
+
+        [ChatCommand("ac-config-tune")]
+        void CmdAcConfigTune(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+            if (args.Length < 2) { SendReply(player, Msg(player, "ConfigTuneUsage")); return; }
+
+            string paramName = args[0].Trim();
+            string valueStr = args[1].Trim();
+
+            if (paramName.Equals("MissExpirySeconds", StringComparison.OrdinalIgnoreCase))
+            {
+                float val;
+                if (!float.TryParse(valueStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out val) || val <= 0)
+                {
+                    SendReply(player, Msg(player, "ConfigTuneInvalidValue", paramName, valueStr));
+                    return;
+                }
+                string old = Config["MissExpirySeconds"] != null ? Config["MissExpirySeconds"].ToString() : "?";
+                Config["MissExpirySeconds"] = (double)val;
+                SaveConfig();
+                SendReply(player, Msg(player, "ConfigTuneUpdated", paramName, val, old));
+            }
+            else if (paramName.Equals("LagswitchDetection.Threshold", StringComparison.OrdinalIgnoreCase))
+            {
+                float val;
+                if (!float.TryParse(valueStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out val) || val < 0f || val > 1f)
+                {
+                    SendReply(player, Msg(player, "ConfigTuneInvalidValue", paramName, valueStr));
+                    return;
+                }
+                var cfg = Config["LagswitchDetection"] as Dictionary<string, object>;
+                if (cfg == null) { SendReply(player, Msg(player, "ConfigTuneInvalidParam", paramName)); return; }
+                string old = cfg.ContainsKey("Threshold") ? cfg["Threshold"].ToString() : "?";
+                cfg["Threshold"] = (double)val;
+                SaveConfig();
+                SendReply(player, Msg(player, "ConfigTuneUpdated", paramName, val, old));
+            }
+            else if (paramName.Equals("PingMonitoring.AnomalyThresholdStdDev", StringComparison.OrdinalIgnoreCase))
+            {
+                float val;
+                if (!float.TryParse(valueStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out val) || val <= 0)
+                {
+                    SendReply(player, Msg(player, "ConfigTuneInvalidValue", paramName, valueStr));
+                    return;
+                }
+                var cfg = Config["PingMonitoring"] as Dictionary<string, object>;
+                if (cfg == null) { SendReply(player, Msg(player, "ConfigTuneInvalidParam", paramName)); return; }
+                string old = cfg.ContainsKey("AnomalyThresholdStdDev") ? cfg["AnomalyThresholdStdDev"].ToString() : "?";
+                cfg["AnomalyThresholdStdDev"] = (double)val;
+                SaveConfig();
+                SendReply(player, Msg(player, "ConfigTuneUpdated", paramName, val, old));
+            }
+            else
+            {
+                SendReply(player, Msg(player, "ConfigTuneInvalidParam", paramName));
+            }
+        }
+
+        [ChatCommand("ac-suggest")]
+        void CmdAcSuggest(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+            if (!IsMLServiceEnabled() || string.IsNullOrEmpty(GetMLServiceEndpoint()))
+            {
+                SendReply(player, Msg(player, "SuggestNoService"));
+                return;
+            }
+
+            SendReply(player, Msg(player, "SuggestFetching"));
+
+            string endpoint = GetMLServiceEndpoint() + "/config-recommend";
+            string token = GetMLServiceAuthToken();
+            var headers = new Dictionary<string, string>();
+            if (!string.IsNullOrEmpty(token))
+                headers["Authorization"] = "Bearer " + token;
+
+            ulong playerId = player.userID;
+            webrequest.Enqueue(endpoint, null, (code, body) =>
+            {
+                BasePlayer admin = BasePlayer.FindByID(playerId);
+                if (admin == null) return;
+
+                if (code != 200 || string.IsNullOrEmpty(body))
+                {
+                    SendReply(admin, Msg(admin, "SuggestNoService"));
+                    return;
+                }
+
+                try
+                {
+                    var root = JObject.Parse(body);
+                    var recs = root["recommendations"] as JObject;
+                    if (recs == null || !recs.HasValues)
+                    {
+                        SendReply(admin, Msg(admin, "SuggestNoChanges"));
+                        return;
+                    }
+
+                    var sb = new System.Text.StringBuilder();
+                    sb.AppendLine($"<color=#55ff55>{Msg(admin, "SuggestHeader")}</color>");
+
+                    foreach (var rec in recs)
+                    {
+                        var obj = rec.Value as JObject;
+                        if (obj == null) continue;
+                        string cur = obj["current"]?.ToString() ?? "?";
+                        string recommended = obj["recommended"]?.ToString() ?? "?";
+                        double conf = obj["confidence"] != null ? (double)obj["confidence"] : 0.0;
+                        sb.AppendLine(Msg(admin, "SuggestRow", rec.Key, cur, recommended, conf));
+                    }
+
+                    SendReply(admin, sb.ToString());
+                }
+                catch
+                {
+                    SendReply(admin, Msg(admin, "SuggestNoService"));
+                }
+            }, this, Core.Libraries.RequestMethod.GET, headers);
+        }
+
         [ChatCommand("ac-help")]
         void CmdAcHelp(BasePlayer player, string command, string[] args)
         {
@@ -2506,6 +2969,12 @@ namespace Oxide.Plugins
             report += Msg(player, "HelpWhy") + "\n";
             report += Msg(player, "HelpLagswitch") + "\n";
             report += Msg(player, "HelpMLFeedback") + "\n";
+            report += Msg(player, "HelpDashboard") + "\n";
+            report += Msg(player, "HelpOverride") + "\n";
+            report += Msg(player, "HelpChart") + "\n";
+            report += Msg(player, "HelpExport") + "\n";
+            report += Msg(player, "HelpConfigTune") + "\n";
+            report += Msg(player, "HelpSuggest") + "\n";
             report += Msg(player, "HelpHelp");
             SendReply(player, report);
         }

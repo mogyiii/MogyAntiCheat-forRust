@@ -184,7 +184,7 @@ RFC:
 
 ## M9 - In-game admin eszközök és vizualizáció
 
-Státusz: `Planned`
+Státusz: `Done`
 Célidő: 2027 Q2
 
 Cél:

@@ -3,7 +3,8 @@
 [English docs](README.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9.2-blue)
+![Version](https://img.shields.io/badge/version-1.9.8-blue)
+![API](https://img.shields.io/badge/api-1.3.0-purple)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
 ## Projekt dokumentáció
@@ -31,14 +32,31 @@ A plugin nem fájlokat vagy folyamatokat vizsgál, hanem harci eseményekből do
 
 ## Főbb jellemzők
 
+**Magdetektor:**
 - Időablakos lövés-találat párosítás.
 - Fegyverenként külön finomhangolható küszöbök.
-- Tartós adattárolás újraindítás után is (runtime data mappában).
-- Épületek kizárása; NPC találatok debug módban bevonhatók az elemzésbe.
-- A bypass jogosultsággal rendelkező játékosok mentesülnek a sebzéscsökkentés alól.
-- In-game admin parancsok ellenőrzéshez, resethez és finomhangoláshoz.
-- Opcionális külső webhook/HTTP küldés (queue, retry/backoff, rate limit).
+- Távolsággal súlyozott pontosság a nagyobb precizitásért.
+- Valós idejű sebzéscsökkentés a statisztikai gyanú alapján.
+
+**Haladó funkciók:**
+- K/D/A (ölés/halál/assziszt) nyomkövetés és tartós adattárolás.
+- Játékosonkénti ping alapvonal + hálózatkezelési anomáliák felismerése.
+- Lagswitch detekció: összetett pontozás ping-kiugrás, ölés minősége és reconnect minták alapján.
+- ML szerviz integráció: opcionális külső megbízhatósági pontozás és automatikus hangolási javaslatok.
+
+**Admin és adatok:**
+- Élő admin irányítópult: játékos áttekintés, nerf státusz, felülbírálat követés.
+- Kézi sebzés-felülbírálat játékosonként teljes audit-naplóval.
+- ASCII diagramok: pontosság trendek, ping alapvonalak, K/D/A vizualizáció.
+- CSV adatexport külső elemzéshez és jelentéskészítéshez.
+- Élő config hangolás újratöltés nélkül.
+
+**Integráció:**
+- Public API v1.3.0 külső pluginok számára.
+- Opcionális webhook/HTTP küldés (queue, retry/backoff, rate limit).
 - Discord webhook endpoint automatikus támogatás (`content` payload).
+- Oxide/uMod és Carbon runtime támogatás.
+- Nemzetköziesítés: beépített angol és magyar; bővíthető nyelvi rendszer.
 
 ## Telepítés
 

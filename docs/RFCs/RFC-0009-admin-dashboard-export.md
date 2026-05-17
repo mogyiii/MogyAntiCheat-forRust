@@ -1,6 +1,6 @@
 # RFC-0009: In-Game Admin Tools & Visualization
 
-Status: `Draft`
+Status: `Accepted`
 Owner: `Szabó Máté`
 Created: `2026-05-15`
 Target Milestone: `M9`

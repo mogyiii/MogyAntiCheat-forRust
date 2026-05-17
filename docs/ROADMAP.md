@@ -183,7 +183,7 @@ RFC:
 
 ## M9 - In-game Admin Tools & Visualization
 
-Status: `Planned`
+Status: `Done`
 Target: Q2 2027
 
 Goal:

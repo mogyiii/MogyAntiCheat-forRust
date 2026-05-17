@@ -3,7 +3,8 @@
 [Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9.3-blue)
+![Version](https://img.shields.io/badge/version-1.9.8-blue)
+![API](https://img.shields.io/badge/api-1.3.0-purple)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
 
 ## Project Documentation
@@ -33,15 +34,31 @@ The plugin does not scan files or processes. It observes combat events and compu
 
 ## Key Features
 
+**Core Detection:**
 - Time-aware shot/hit correlation using shot expiry windows.
 - Per-weapon tuning through config (`MaxAccuracy`, `SampleCount`, `SafeDistance`).
-- Persistent stats across restarts (runtime data directory).
-- Ignores buildings; NPC targets are included when `DebugMode` is enabled.
-- Players with bypass permission are exempt from damage nerfing.
-- In-game admin chat commands for checks and resets.
-- Public extension API for external plugins.
+- Long-range weighted accuracy scoring for enhanced precision.
+- Real-time damage scaling based on statistical suspicion.
+
+**Advanced Features:**
+- K/D/A (Kills/Deaths/Assists) tracking with persistent stats.
+- Per-player ping baseline + anomaly detection for network manipulation.
+- Lagswitch detection: composite scoring from ping spikes, kill quality, and reconnect patterns.
+- ML service integration: optional external confidence scoring and auto-tuning recommendations.
+
+**Admin & Data:**
+- Live admin dashboard: player overview, nerf status, override tracking.
+- Manual damage override per player with full audit trail.
+- ASCII charts: accuracy trends, ping baselines, K/D/A visualizations.
+- CSV data export for external analysis and reporting.
+- Live config tuning without reload.
+
+**Integration:**
+- Public extension API v1.3.0 for external plugins.
 - Optional webhook/HTTP delivery with queueing, retry/backoff, and rate limiting.
 - Automatic Discord webhook compatibility (`username` + `content` payload).
+- Both Oxide/uMod and Carbon runtime support.
+- Internationalization: English and Hungarian built-in; extensible lang system.
 
 ## Installation
 

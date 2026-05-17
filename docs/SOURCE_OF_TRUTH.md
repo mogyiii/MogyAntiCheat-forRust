@@ -1,6 +1,6 @@
 # MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.7).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.8).
 
 ## Purpose
 
@@ -65,6 +65,13 @@ Out of scope:
   - Each entry holds `FetchedAtMs`, `Confidence`, `SuggestedNerfPct`, `AnomalyType`, `Reason`.
   - Entries are considered expired after `MLService.CacheSuggestionsSeconds` seconds.
   - Runtime-only (not persisted).
+- `_manualOverrides: Dictionary<ulong, float>`
+  - Per-player admin-set damage multiplier [0.0–1.0].
+  - When present, applied as a floor penalty (min of computed nerf and manual value).
+  - Cleared on `/ac-reset`. Runtime-only (not persisted).
+- `_overrideAuditLog: List<OverrideAuditEntry>`
+  - Ordered log of all `/ac-override` changes: `TimestampUtc`, `AdminId`, `AdminName`, `TargetId`, `TargetName`, `OldValue`, `NewValue`.
+  - Runtime-only (not persisted).
 
 Persistence:
 
@@ -106,7 +113,7 @@ Runtime compatibility:
 - Load per-weapon `SampleCount` and global `MissExpirySeconds`.
 - Register hit into rolling history (`RegisterHit`).
 - Evaluate suspicion for active weapon and emit transition event payload.
-- Compute attacker nerf (`GetLowestNerf`) and scale outgoing damage if needed.
+- Compute attacker nerf (`GetLowestNerf`) and apply manual override floor (`_manualOverrides`) if present; scale outgoing damage if needed.
 - Emit penalty-applied hook after scaling (if enabled).
 - Enqueue `ShotTelemetryEvent` (type `hit`).
 
@@ -266,6 +273,29 @@ If a weapon has no entry, history limit falls back to `40` during hit registrati
   - Admin-only.
   - Sends outcome feedback to the configured ML service endpoint (`POST /feedback`).
   - No-op (with error message) when `MLService.Enabled` is `false` or endpoint is not configured.
+- `/ac-dashboard`
+  - Admin-only.
+  - Prints a live tabular view of all tracked players: name, current nerf, ping average, lagswitch incident count, K/D/A, and manual override status.
+- `/ac-override <playerName> <0-100|off>`
+  - Admin-only.
+  - Sets a manual damage reduction percentage (0 = no reduction, 100 = full block) for a specific player.
+  - `off` clears the override and returns the player to algorithm-computed nerf.
+  - Every change is recorded in `_overrideAuditLog` with admin identity and timestamps.
+  - Cleared on `/ac-reset`.
+- `/ac-chart <playerName> <accuracy|ping|kda>`
+  - Admin-only.
+  - Renders an ASCII visualization in chat: sparkline bar chart for accuracy (per-weapon), min/avg/max ruler for ping, and proportional K/D/A bars.
+- `/ac-export csv`
+  - Admin-only.
+  - Writes all tracked player data (per-weapon accuracy, KDA, ping baseline, lagswitch incidents, override) to a timestamped CSV file in `_runtimeDataDirectory`.
+- `/ac-config-tune <param> <value>`
+  - Admin-only.
+  - Supported parameters: `MissExpirySeconds`, `LagswitchDetection.Threshold`, `PingMonitoring.AnomalyThresholdStdDev`.
+  - Changes are validated, applied immediately, and persisted to config.
+- `/ac-suggest`
+  - Admin-only.
+  - Queries the ML service `/config-recommend` endpoint and displays a diff of current vs. recommended config values.
+  - No-op when ML service is disabled or unreachable.
 
 ## Known Constraints
 
