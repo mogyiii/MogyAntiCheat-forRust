@@ -413,6 +413,8 @@ namespace Oxide.Plugins
             public int DeltaPingMs;
             public float AccuracyInWindow;
             public string EventType;
+            public string HitArea;      // "head", "chest", "arm", stb. (null lövésnél/missnél)
+            public float GameTimeHour;  // 0–24, -1 ha nem elérhető
         }
 
         private class MLSuggestionCacheEntry
@@ -1335,7 +1337,16 @@ namespace Oxide.Plugins
 
         private int GetPlayerPing(BasePlayer player)
         {
-            if (player?.net?.connection == null) return 0;
+            if (player == null) return 0;
+            // Oxide/Carbon IPlayer.Ping a legmegbízhatóbb forrás
+            try
+            {
+                int ip = player.IPlayer?.Ping ?? -1;
+                if (ip >= 0) return ip;
+            }
+            catch { }
+            // Reflection fallback régebbi build-ekhez
+            if (player.net?.connection == null) return 0;
             try
             {
                 if (!_pingPropertyResolved)
@@ -1348,6 +1359,20 @@ namespace Oxide.Plugins
                 return Convert.ToInt32(_pingPropertyInfo.GetValue(player.net.connection));
             }
             catch { return 0; }
+        }
+
+        private string GetHitAreaName(HitInfo info)
+        {
+            if (info == null) return "unknown";
+            if (info.isHeadshot) return "head";
+            try { return info.boneArea.ToString().ToLower(); }
+            catch { return "unknown"; }
+        }
+
+        private float GetGameTimeHour()
+        {
+            try { return TOD_Sky.Instance?.Cycle?.Hour ?? -1f; }
+            catch { return -1f; }
         }
 
         private PlayerPingStats GetOrCreatePingStats(ulong playerId)
@@ -1549,7 +1574,8 @@ namespace Oxide.Plugins
                 PingMs = ping,
                 DeltaPingMs = deltaPing,
                 AccuracyInWindow = weaponData.GetAccuracy(),
-                EventType = "shot"
+                EventType = "shot",
+                GameTimeHour = GetGameTimeHour()
             });
         }
 
@@ -1618,6 +1644,8 @@ namespace Oxide.Plugins
             int ping = GetPlayerPing(attacker);
             PlayerPingStats pingStats = GetOrCreatePingStats(attacker.userID);
             int deltaPing = pingStats.SampleCount > 0 ? ping - pingStats.LastPing : 0;
+            string hitArea = GetHitAreaName(info);
+            float gameTimeHour = GetGameTimeHour();
 
             weaponData.RegisterHit(dist, limit, expiry, ping, deltaPing);
 
@@ -1631,7 +1659,9 @@ namespace Oxide.Plugins
                 PingMs = ping,
                 DeltaPingMs = deltaPing,
                 AccuracyInWindow = weaponData.GetAccuracy(),
-                EventType = "hit"
+                EventType = "hit",
+                HitArea = hitArea,
+                GameTimeHour = gameTimeHour
             });
 
             var evaluation = EvaluateWeapon(wName, weaponData);
@@ -1653,7 +1683,7 @@ namespace Oxide.Plugins
                 float originalDamage = info.damageTypes.Total();
                 info.damageTypes.ScaleAll(globalNerf);
                 float scaledDamage = info.damageTypes.Total();
-                EmitPenaltyEvent(attacker, targetPlayer, wName, globalNerf, originalDamage, scaledDamage, ping);
+                EmitPenaltyEvent(attacker, targetPlayer, wName, globalNerf, originalDamage, scaledDamage, ping, hitArea, gameTimeHour);
             }
             else if (debugMode)
             {
@@ -1719,6 +1749,7 @@ namespace Oxide.Plugins
             float killDist = Vector3.Distance(attacker.transform.position, victim.transform.position);
             int killPing = GetPlayerPing(attacker);
             bool wasHeadshot = info?.isHeadshot ?? false;
+            string killHitArea = wasHeadshot ? "head" : GetHitAreaName(info);
 
             EnqueueTelemetry(new ShotTelemetryEvent
             {
@@ -1728,7 +1759,9 @@ namespace Oxide.Plugins
                 Distance = killDist,
                 Hit = true,
                 PingMs = killPing,
-                EventType = "kill"
+                EventType = "kill",
+                HitArea = killHitArea,
+                GameTimeHour = GetGameTimeHour()
             });
 
             EvaluateLagswitch(attacker, victim, wName, killDist, wasHeadshot, killPing);
@@ -1837,7 +1870,7 @@ namespace Oxide.Plugins
             FetchMLSuggestion(playerId);
         }
 
-        private void EmitPenaltyEvent(BasePlayer attacker, BasePlayer target, string weaponName, float appliedMultiplier, float originalDamage, float scaledDamage, int pingAtEvent = 0)
+        private void EmitPenaltyEvent(BasePlayer attacker, BasePlayer target, string weaponName, float appliedMultiplier, float originalDamage, float scaledDamage, int pingAtEvent = 0, string hitArea = null, float gameTimeHour = -1f)
         {
             if (attacker == null) return;
 
@@ -1856,6 +1889,8 @@ namespace Oxide.Plugins
                 ["pingAtEvent"] = pingAtEvent,
                 ["pingBaselineAvg"] = pingStats != null ? pingStats.EMA : 0.0,
                 ["pingAnomaly"] = pingStats != null && pingStats.IsAnomalous(pingAtEvent, GetPingAnomalyThreshold()),
+                ["hitArea"] = hitArea ?? "unknown",
+                ["gameTimeHour"] = gameTimeHour,
                 ["timestampUtc"] = DateTime.UtcNow.ToString("o")
             };
 
@@ -1875,7 +1910,7 @@ namespace Oxide.Plugins
                 payload["mlApplied"] = true;
             }
 
-            DebugLog($"Penalty applied: attacker={attacker.displayName} ({attacker.userID}), weapon={weaponName}, mult={appliedMultiplier:F2}, dmg={originalDamage:F1}->{scaledDamage:F1}, ping={pingAtEvent}ms");
+            DebugLog($"Penalty applied: attacker={attacker.displayName} ({attacker.userID}), weapon={weaponName}, mult={appliedMultiplier:F2}, dmg={originalDamage:F1}->{scaledDamage:F1}, ping={pingAtEvent}ms, hitArea={hitArea ?? "unknown"}, gameTime={gameTimeHour:F1}h");
 
             if (IsPublicApiEnabled() && ShouldEmitPenaltyEvents())
                 Interface.CallHook("OnMogyAcPenaltyApplied", payload);
