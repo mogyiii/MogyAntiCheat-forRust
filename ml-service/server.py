@@ -50,12 +50,12 @@ def ingest():
 
     # Stub: simple heuristic scoring — replace with real model inference
     for ev in events:
-        pid = str(ev.get("player_id", ""))
-        weapon = ev.get("weapon", "unknown")
-        if ev.get("event_type") == "hit" and pid:
-            accuracy = float(ev.get("accuracy_in_window", 0.0))
-            distance = float(ev.get("distance", 0.0))
-            ping = int(ev.get("ping_at_shot", 0))
+        pid = str(ev.get("PlayerId", ev.get("player_id", "")))
+        weapon = ev.get("WeaponName", ev.get("weapon", "unknown"))
+        if ev.get("EventType", ev.get("event_type", "")) == "hit" and pid:
+            accuracy = float(ev.get("AccuracyInWindow", ev.get("accuracy_in_window", 0.0)))
+            distance = float(ev.get("Distance", ev.get("distance", 0.0)))
+            ping = int(ev.get("PingMs", ev.get("ping_at_shot", 0)))
             # Naive scoring stub
             confidence = min(1.0, max(0.0, (accuracy - 0.70) * 2.0 + (distance / 200.0) - (ping / 500.0)))
             nerf_pct = int(confidence * 50) if confidence > 0.60 else 0

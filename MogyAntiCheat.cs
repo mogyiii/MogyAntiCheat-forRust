@@ -921,6 +921,25 @@ namespace Oxide.Plugins
             try { return Convert.ToInt32(cfg["CacheSuggestionsSeconds"]); } catch { return 60; }
         }
 
+        private bool IsFallbackToLocalScoringEnabled()
+        {
+            var cfg = Config["MLService"] as Dictionary<string, object>;
+            if (cfg == null || !cfg.ContainsKey("FallbackToLocalScoring")) return true;
+            try { return Convert.ToBoolean(cfg["FallbackToLocalScoring"]); } catch { return true; }
+        }
+
+        private bool TryGetCachedMLNerf(ulong userId, string weaponName, out float mlNerf)
+        {
+            mlNerf = 1.0f;
+            Dictionary<string, MLSuggestionCacheEntry> playerCache;
+            if (!_mlSuggestionCache.TryGetValue(userId, out playerCache)) return false;
+            MLSuggestionCacheEntry entry;
+            if (!playerCache.TryGetValue(weaponName, out entry)) return false;
+            if (entry.IsExpired(GetMLServiceCacheSuggestionsSeconds())) return false;
+            mlNerf = Mathf.Clamp(entry.SuggestedNerfPct / 100f, 0f, 1.0f);
+            return true;
+        }
+
         private string GetConfiguredDefaultLanguage()
         {
             var raw = Config["DefaultLanguage"] != null ? Config["DefaultLanguage"].ToString() : DefaultLanguageFallback;
@@ -1668,6 +1687,24 @@ namespace Oxide.Plugins
             ProcessSuspicionTransition(attacker, wName, evaluation);
 
             float globalNerf = GetLowestNerf(attacker.userID);
+
+            if (IsMLServiceEnabled())
+            {
+                float mlNerf;
+                if (TryGetCachedMLNerf(attacker.userID, wName, out mlNerf))
+                {
+                    if (debugMode)
+                        DebugLog($"ML nerf applied: player={attacker.displayName} ({attacker.userID}), weapon={wName}, mlNerf={mlNerf:P2}, localNerf={globalNerf:P2}");
+                    globalNerf = Math.Min(globalNerf, mlNerf);
+                }
+                else if (!IsFallbackToLocalScoringEnabled())
+                {
+                    globalNerf = 1.0f;
+                    if (debugMode)
+                        DebugLog($"ML nerf: no cached suggestion for {attacker.displayName}/{wName}, fallback disabled → no nerf");
+                }
+            }
+
             float manualOverrideMultiplier;
             bool hasManualOverride = _manualOverrides.TryGetValue(attacker.userID, out manualOverrideMultiplier);
             if (hasManualOverride)
