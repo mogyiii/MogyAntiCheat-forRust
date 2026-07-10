@@ -143,7 +143,27 @@ To customize text:
 - `/ac-weapon <weaponShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <value>` - Update weapon thresholds in-game and save config.
 - `/ac-debug-log [clear]` - Show/clear debug log file path.
 - `/ac-why [weaponShortName|active]` - Explain why nerf is or is not applied for a weapon.
+- `/ac-weekly-now` - Send the anonymized weekly telemetry report immediately (for testing; requires opt-in).
 - `/ac-help` - Show available admin command list.
+
+## Anonymous Weekly Report (opt-in)
+
+The plugin can send an **anonymized weekly summary** to the developer to help improve detection
+thresholds and the ML configuration. It is **off by default** and controlled by the `WeeklyReport`
+config block. Nothing is sent until you set `WeeklyReport.Accepted = true`.
+
+- SteamIDs are replaced with an irreversible per-server hash (HMAC-SHA256 with a local salt that is
+  never transmitted). **No player names, IP addresses, or raw SteamIDs are ever sent.**
+- Only aggregated combat/operational metrics are included.
+- See [`docs/DATA_COLLECTION.md`](docs/DATA_COLLECTION.md) for the full notice and
+  [`docs/CONFIG_SCHEMA.md`](docs/CONFIG_SCHEMA.md) → `WeeklyReport` for configuration.
+
+## Building as a DLL (advanced)
+
+The plugin ships as a single runtime-compiled `.cs` file. If you need a precompiled binary (e.g. for
+IP/tamper protection), see [`docs/DLL_BUILD.md`](docs/DLL_BUILD.md). Carbon supports precompiled
+plugin DLLs natively; on Oxide the binary route requires converting to an Extension. The
+data-collection disclosure and opt-in flag must remain intact in any DLL build.
 
 ## FAQ (Common Concerns)
 

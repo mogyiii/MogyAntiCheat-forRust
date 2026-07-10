@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oxide.Core;
@@ -12,7 +14,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Mogy AntiCheat", "Mogy", "1.9.8")]
+    [Info("Mogy AntiCheat", "Mogy", "1.10.0")]
     [Description("Tracks weapon accuracy trends and dynamically reduces suspicious player damage using configurable thresholds and localized admin commands.")]
     public class MogyAntiCheat : RustPlugin
     {
@@ -27,6 +29,14 @@ namespace Oxide.Plugins
         private const int TelemetryQueueMaxSize = 5000;
         private const float TelemetryFlushIntervalSeconds = 300f;
         private const int PingBaselineSamples = 50;
+
+        // --- Weekly telemetry report (opt-in, see docs/DATA_COLLECTION.md) ---
+        // IMPORTANT: Set this to YOUR Discord webhook URL before building/distributing the plugin,
+        // so that servers which accept the data-collection notice deliver their weekly anonymous
+        // report to you by default. Individual servers can override it in the config.
+        private const string DefaultWeeklyReportWebhook = "";
+        private const string SaltDataFileName = "MogyAntiCheat_Salt";
+        private const string WeeklyReportDataFileName = "MogyAntiCheat_WeeklyReport";
 
         private DynamicConfigFile _storedData;
         private DynamicConfigFile _kdaData;
@@ -49,6 +59,9 @@ namespace Oxide.Plugins
         private readonly Queue<WebhookEnvelope> _webhookQueue = new Queue<WebhookEnvelope>();
         private Timer _webhookPumpTimer;
         private Timer _telemetryFlushTimer;
+        private Timer _weeklyReportTimer;
+        private DynamicConfigFile _weeklyReportData;
+        private string _telemetrySalt = string.Empty;
         private bool _webhookRequestInFlight;
         private float _webhookWindowStart;
         private int _webhookSentInWindow;
@@ -60,6 +73,13 @@ namespace Oxide.Plugins
             ["NoPermission"] = "You do not have permission to use this command.",
             ["PlayerNotFound"] = "Player not found.",
             ["NoData"] = "No data.",
+            ["WeeklyDisclosure1"] = "[MogyAC] This plugin can send an ANONYMOUS weekly summary to the developer to improve detection configs.",
+            ["WeeklyDisclosure2"] = "[MogyAC] SteamIDs are irreversibly hashed; no names or IPs are collected. See docs/DATA_COLLECTION.md.",
+            ["WeeklyDisclosureActive"] = "[MogyAC] Weekly report: ENABLED (WeeklyReport.Accepted = true). Set it to false to opt out.",
+            ["WeeklyDisclosureInactive"] = "[MogyAC] Weekly report: OFF. Set WeeklyReport.Accepted = true (and a webhook URL) to opt in.",
+            ["WeeklyNotAccepted"] = "[MogyAC] Weekly report is not accepted. Set WeeklyReport.Accepted = true first.",
+            ["WeeklyNoUrl"] = "[MogyAC] No weekly report webhook URL is configured.",
+            ["WeeklySentNow"] = "[MogyAC] Weekly report sent.",
             ["StatsHeader"] = "=== MogyAC STATS: {0} ===",
             ["GlobalDamageLabel"] = "GLOBAL DAMAGE",
             ["WeaponLine"] = "{0}: {1:P1} ({2} shots)",
@@ -153,6 +173,13 @@ namespace Oxide.Plugins
             ["NoPermission"] = "Nincs jogosultságod ehhez a parancshoz.",
             ["PlayerNotFound"] = "Játékos nem található.",
             ["NoData"] = "Nincs adat.",
+            ["WeeklyDisclosure1"] = "[MogyAC] Ez a plugin NÉVTELEN heti összesítőt küldhet a fejlesztőnek a detektálási configok javításához.",
+            ["WeeklyDisclosure2"] = "[MogyAC] A SteamID-k visszafejthetetlenül hashelve; nevet és IP-t nem gyűjtünk. Lásd: docs/DATA_COLLECTION.md.",
+            ["WeeklyDisclosureActive"] = "[MogyAC] Heti riport: BEKAPCSOLVA (WeeklyReport.Accepted = true). Kikapcsolás: állítsd false-ra.",
+            ["WeeklyDisclosureInactive"] = "[MogyAC] Heti riport: KI. Bekapcsolás: WeeklyReport.Accepted = true (és egy webhook URL).",
+            ["WeeklyNotAccepted"] = "[MogyAC] A heti riport nincs elfogadva. Előbb állítsd: WeeklyReport.Accepted = true.",
+            ["WeeklyNoUrl"] = "[MogyAC] Nincs beállítva heti riport webhook URL.",
+            ["WeeklySentNow"] = "[MogyAC] Heti riport elküldve.",
             ["StatsHeader"] = "=== MogyAC STAT: {0} ===",
             ["GlobalDamageLabel"] = "GLOBAL SEBZÉS",
             ["WeaponLine"] = "{0}: {1:P1} ({2} lövés)",
@@ -405,7 +432,9 @@ namespace Oxide.Plugins
         private class ShotTelemetryEvent
         {
             public long TimestampMs;
-            public ulong PlayerId;
+            // Irreversible per-server HMAC of the player's SteamID (never the raw ID).
+            // Consistent within a server so behaviour can be attributed, but not linkable to a real person.
+            public string PlayerHash;
             public string WeaponName;
             public float Distance;
             public bool Hit;
@@ -470,15 +499,19 @@ namespace Oxide.Plugins
 
             _storedData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_Stats");
             _kdaData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_KDA");
+            _weeklyReportData = Interface.Oxide.DataFileSystem.GetFile(WeeklyReportDataFileName);
             _debugLogPath = Path.Combine(_runtimeDataDirectory, DebugLogFileName);
             LoadStats();
             LoadKDAStats();
             EnsureConfigDefaults();
+            EnsureTelemetrySalt();
             _webhookWindowStart = UnityEngine.Time.realtimeSinceStartup;
             _webhookPumpTimer = timer.Every(0.25f, PumpWebhookQueue);
             _telemetryFlushTimer = timer.Every(TelemetryFlushIntervalSeconds, FlushTelemetryQueue);
+            _weeklyReportTimer = timer.Every(3600f, WeeklyReportTick);
 
             Puts($"Runtime detected: {_runtimeName} | Data directory: {_runtimeDataDirectory}");
+            LogDataCollectionDisclosure();
         }
 
         void OnServerSave()
@@ -491,6 +524,7 @@ namespace Oxide.Plugins
         {
             _webhookPumpTimer?.Destroy();
             _telemetryFlushTimer?.Destroy();
+            _weeklyReportTimer?.Destroy();
             FlushTelemetryQueue();
             SaveStats();
             SaveKDAStats();
@@ -721,7 +755,23 @@ namespace Oxide.Plugins
                 ["CacheSuggestionsSeconds"] = 60,
                 ["FallbackToLocalScoring"] = true
             };
+            Config["WeeklyReport"] = BuildDefaultWeeklyReportConfig();
             SaveConfig();
+        }
+
+        private Dictionary<string, object> BuildDefaultWeeklyReportConfig()
+        {
+            // Anonymous weekly telemetry summary sent to the plugin developer.
+            // Disabled until the server operator sets Accepted = true (see docs/DATA_COLLECTION.md).
+            return new Dictionary<string, object>
+            {
+                ["Enabled"] = true,
+                ["Accepted"] = false,
+                ["DiscordWebhookUrl"] = DefaultWeeklyReportWebhook,
+                ["IntervalDays"] = 7,
+                ["IncludeKDA"] = true,
+                ["IncludeLagswitch"] = true
+            };
         }
 
         private void EnsureConfigDefaults()
@@ -818,6 +868,22 @@ namespace Oxide.Plugins
                 if (!mlCfg.ContainsKey("TimeoutSeconds")) { mlCfg["TimeoutSeconds"] = 5; changed = true; }
                 if (!mlCfg.ContainsKey("CacheSuggestionsSeconds")) { mlCfg["CacheSuggestionsSeconds"] = 60; changed = true; }
                 if (!mlCfg.ContainsKey("FallbackToLocalScoring")) { mlCfg["FallbackToLocalScoring"] = true; changed = true; }
+            }
+
+            var weeklyCfg = Config["WeeklyReport"] as Dictionary<string, object>;
+            if (weeklyCfg == null)
+            {
+                Config["WeeklyReport"] = BuildDefaultWeeklyReportConfig();
+                changed = true;
+            }
+            else
+            {
+                if (!weeklyCfg.ContainsKey("Enabled")) { weeklyCfg["Enabled"] = true; changed = true; }
+                if (!weeklyCfg.ContainsKey("Accepted")) { weeklyCfg["Accepted"] = false; changed = true; }
+                if (!weeklyCfg.ContainsKey("DiscordWebhookUrl")) { weeklyCfg["DiscordWebhookUrl"] = DefaultWeeklyReportWebhook; changed = true; }
+                if (!weeklyCfg.ContainsKey("IntervalDays")) { weeklyCfg["IntervalDays"] = 7; changed = true; }
+                if (!weeklyCfg.ContainsKey("IncludeKDA")) { weeklyCfg["IncludeKDA"] = true; changed = true; }
+                if (!weeklyCfg.ContainsKey("IncludeLagswitch")) { weeklyCfg["IncludeLagswitch"] = true; changed = true; }
             }
 
             if (changed) SaveConfig();
@@ -1430,20 +1496,14 @@ namespace Oxide.Plugins
             var batch = _telemetryQueue.ToList();
             _telemetryQueue.Clear();
 
-            long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var batchPayload = new Dictionary<string, object>
-            {
-                ["server_id"] = ConVar.Server.hostname ?? "unknown",
-                ["timestamp"] = nowMs,
-                ["batch_id"] = $"batch_{nowMs}",
-                ["count"] = batch.Count,
-                ["events"] = batch
-            };
-
             try
             {
+                // JSON Lines: one event object per line, no batch wrapper.
                 string logFile = Path.Combine(_runtimeDataDirectory, $"MogyAntiCheat_Events_{DateTime.UtcNow:yyyyMMdd}.log");
-                File.AppendAllText(logFile, JsonConvert.SerializeObject(batchPayload) + Environment.NewLine);
+                var sb = new StringBuilder();
+                foreach (var ev in batch)
+                    sb.Append(JsonConvert.SerializeObject(ev)).Append(Environment.NewLine);
+                File.AppendAllText(logFile, sb.ToString());
                 DebugLog($"Telemetry flushed: {batch.Count} events");
             }
             catch (Exception ex)
@@ -1452,16 +1512,17 @@ namespace Oxide.Plugins
             }
 
             if (IsMLServiceEnabled())
-                PostTelemetryToMLService(batchPayload);
+                PostTelemetryToMLService(batch);
         }
 
-        private void PostTelemetryToMLService(Dictionary<string, object> batchPayload)
+        private void PostTelemetryToMLService(List<ShotTelemetryEvent> batch)
         {
             string endpoint = GetMLServiceEndpoint();
             if (string.IsNullOrWhiteSpace(endpoint)) return;
 
+            // Events only — no batch wrapper. Body is a bare JSON array of event objects.
             string url = $"{endpoint}/ingest";
-            string body = JsonConvert.SerializeObject(batchPayload);
+            string body = JsonConvert.SerializeObject(batch);
             var headers = new Dictionary<string, string> { ["Content-Type"] = "application/json" };
             string token = GetMLServiceAuthToken();
             if (!string.IsNullOrWhiteSpace(token)) headers["Authorization"] = $"Bearer {token}";
@@ -1480,6 +1541,290 @@ namespace Oxide.Plugins
             {
                 DebugLog($"ML service ingest request error: {ex.Message}");
             }
+        }
+
+        // ===================== Telemetry anonymization =====================
+
+        // Loads (or generates once) a random per-server salt used to irreversibly hash SteamIDs.
+        // The salt is stored locally in MogyAntiCheat_Salt.json and is NEVER transmitted, which is
+        // what makes the outgoing player hashes impossible to reverse — even for the plugin author.
+        private void EnsureTelemetrySalt()
+        {
+            try
+            {
+                var file = Interface.Oxide.DataFileSystem.GetFile(SaltDataFileName);
+                var data = file.ReadObject<Dictionary<string, string>>();
+                string salt = null;
+                if (data != null) data.TryGetValue("salt", out salt);
+
+                if (string.IsNullOrEmpty(salt))
+                {
+                    salt = GenerateRandomSalt();
+                    file.WriteObject(new Dictionary<string, string> { ["salt"] = salt });
+                    DebugLog("Generated a new per-server telemetry salt.");
+                }
+
+                _telemetrySalt = salt;
+            }
+            catch (Exception ex)
+            {
+                // Fail-safe: if the salt cannot be persisted, use a volatile session salt so we
+                // still never emit raw SteamIDs (hashes just won't be stable across restarts).
+                _telemetrySalt = GenerateRandomSalt();
+                DebugLog($"Telemetry salt load failed, using volatile session salt: {ex.Message}");
+            }
+        }
+
+        private string GenerateRandomSalt()
+        {
+            var bytes = new byte[32];
+            using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(bytes);
+            return Convert.ToBase64String(bytes);
+        }
+
+        // HMAC-SHA256(SteamID, per-server salt) truncated to 16 bytes (32 hex chars).
+        // Stable within a server, irreversible without the local salt.
+        private string HashPlayerId(ulong playerId)
+        {
+            try
+            {
+                var keyBytes = Encoding.UTF8.GetBytes(string.IsNullOrEmpty(_telemetrySalt) ? "mogyac" : _telemetrySalt);
+                using (var hmac = new HMACSHA256(keyBytes))
+                {
+                    var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(playerId.ToString()));
+                    var sb = new StringBuilder(32);
+                    for (int i = 0; i < 16 && i < hash.Length; i++) sb.Append(hash[i].ToString("x2"));
+                    return sb.ToString();
+                }
+            }
+            catch
+            {
+                return "anon";
+            }
+        }
+
+        // ===================== Weekly report (opt-in telemetry) =====================
+
+        private Dictionary<string, object> GetWeeklyReportConfig()
+            => Config["WeeklyReport"] as Dictionary<string, object>;
+
+        private bool GetWeeklyReportEnabled()
+        {
+            var cfg = GetWeeklyReportConfig();
+            if (cfg == null || !cfg.ContainsKey("Enabled")) return true;
+            try { return Convert.ToBoolean(cfg["Enabled"]); } catch { return true; }
+        }
+
+        private bool GetWeeklyReportAccepted()
+        {
+            var cfg = GetWeeklyReportConfig();
+            if (cfg == null || !cfg.ContainsKey("Accepted")) return false;
+            try { return Convert.ToBoolean(cfg["Accepted"]); } catch { return false; }
+        }
+
+        private string GetWeeklyReportWebhookUrl()
+        {
+            var cfg = GetWeeklyReportConfig();
+            if (cfg == null || !cfg.ContainsKey("DiscordWebhookUrl") || cfg["DiscordWebhookUrl"] == null) return string.Empty;
+            return cfg["DiscordWebhookUrl"].ToString();
+        }
+
+        private int GetWeeklyReportIntervalDays()
+        {
+            var cfg = GetWeeklyReportConfig();
+            if (cfg == null || !cfg.ContainsKey("IntervalDays")) return 7;
+            try { int v = Convert.ToInt32(cfg["IntervalDays"]); return v < 1 ? 1 : v; } catch { return 7; }
+        }
+
+        private bool GetWeeklyReportIncludeKDA()
+        {
+            var cfg = GetWeeklyReportConfig();
+            if (cfg == null || !cfg.ContainsKey("IncludeKDA")) return true;
+            try { return Convert.ToBoolean(cfg["IncludeKDA"]); } catch { return true; }
+        }
+
+        private bool GetWeeklyReportIncludeLagswitch()
+        {
+            var cfg = GetWeeklyReportConfig();
+            if (cfg == null || !cfg.ContainsKey("IncludeLagswitch")) return true;
+            try { return Convert.ToBoolean(cfg["IncludeLagswitch"]); } catch { return true; }
+        }
+
+        // One-line notice printed to the server console on load so operators are always aware
+        // the plugin can send an anonymous weekly summary and how to opt in/out.
+        private void LogDataCollectionDisclosure()
+        {
+            bool active = GetWeeklyReportEnabled() && GetWeeklyReportAccepted() && !string.IsNullOrWhiteSpace(GetWeeklyReportWebhookUrl());
+            Puts("------------------------------------------------------------");
+            Puts(Msg(null, "WeeklyDisclosure1"));
+            Puts(Msg(null, "WeeklyDisclosure2"));
+            Puts(active ? Msg(null, "WeeklyDisclosureActive") : Msg(null, "WeeklyDisclosureInactive"));
+            Puts("------------------------------------------------------------");
+        }
+
+        // Runs hourly; sends the report only when at least IntervalDays have passed since the last send.
+        private void WeeklyReportTick()
+        {
+            try
+            {
+                if (!GetWeeklyReportEnabled() || !GetWeeklyReportAccepted()) return;
+                string url = GetWeeklyReportWebhookUrl();
+                if (string.IsNullOrWhiteSpace(url)) return;
+
+                long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                long lastSent = ReadWeeklyReportLastSent();
+
+                // First activation: seed the timestamp and wait a full interval before the first send.
+                if (lastSent == 0) { WriteWeeklyReportLastSent(nowMs); return; }
+
+                long intervalMs = (long)GetWeeklyReportIntervalDays() * 86400000L;
+                if (nowMs - lastSent < intervalMs) return;
+
+                SendWeeklyReport(url, BuildWeeklyReportContent());
+                WriteWeeklyReportLastSent(nowMs);
+            }
+            catch (Exception ex)
+            {
+                DebugLog($"Weekly report tick failed: {ex.Message}");
+            }
+        }
+
+        private long ReadWeeklyReportLastSent()
+        {
+            try
+            {
+                var data = _weeklyReportData.ReadObject<Dictionary<string, long>>();
+                long v;
+                if (data != null && data.TryGetValue("lastSentMs", out v)) return v;
+            }
+            catch { }
+            return 0;
+        }
+
+        private void WriteWeeklyReportLastSent(long ms)
+        {
+            try { _weeklyReportData.WriteObject(new Dictionary<string, long> { ["lastSentMs"] = ms }); }
+            catch (Exception ex) { DebugLog($"Weekly report state save failed: {ex.Message}"); }
+        }
+
+        // Builds an aggregated, anonymized summary. Only hashed player IDs and operational metrics
+        // are included — never names, IPs or raw SteamIDs.
+        private string BuildWeeklyReportContent()
+        {
+            string server = ConVar.Server.hostname ?? "unknown";
+            int days = GetWeeklyReportIntervalDays();
+
+            int trackedPlayers = _playerStats.Count;
+            int totalShots = 0, totalHits = 0;
+            var flagged = new List<KeyValuePair<float, string>>();
+
+            foreach (var pEntry in _playerStats)
+            {
+                string bestWeapon = null;
+                float bestAcc = -1f;
+                int bestSamples = 0;
+
+                foreach (var wEntry in pEntry.Value)
+                {
+                    var hist = wEntry.Value?.History;
+                    if (hist == null || hist.Count == 0) continue;
+
+                    int hits = 0;
+                    for (int i = 0; i < hist.Count; i++) if (hist[i].IsHit) hits++;
+                    totalShots += hist.Count;
+                    totalHits += hits;
+
+                    if (hist.Count >= 10)
+                    {
+                        float acc = (float)hits / hist.Count;
+                        if (acc > bestAcc) { bestAcc = acc; bestWeapon = wEntry.Key; bestSamples = hist.Count; }
+                    }
+                }
+
+                if (bestWeapon != null && bestAcc >= 0.5f)
+                    flagged.Add(new KeyValuePair<float, string>(bestAcc,
+                        $"{HashPlayerId(pEntry.Key)} | {bestWeapon} | acc={bestAcc:P0} | n={bestSamples}"));
+            }
+
+            flagged.Sort((a, b) => b.Key.CompareTo(a.Key));
+
+            float overallAcc = totalShots > 0 ? (float)totalHits / totalShots : 0f;
+
+            var sb = new StringBuilder();
+            sb.Append("**[MogyAC] Weekly report** — `").Append(server).Append("`\n");
+            sb.Append($"Window: ~{days}d | Players: {trackedPlayers} | Shots: {totalShots} | Hits: {totalHits} ({overallAcc:P0})\n");
+
+            if (GetWeeklyReportIncludeLagswitch())
+            {
+                int lsPlayers = 0, lsTotal = 0;
+                foreach (var e in _lagswitchIncidents)
+                {
+                    if (e.Value == null || e.Value.Count == 0) continue;
+                    lsPlayers++;
+                    lsTotal += e.Value.Count;
+                }
+                sb.Append($"Lagswitch incidents: {lsTotal} ({lsPlayers} players)\n");
+            }
+
+            if (GetWeeklyReportIncludeKDA())
+            {
+                int kills = 0, deaths = 0;
+                foreach (var e in _playerKDAStats) { kills += e.Value.Kills; deaths += e.Value.Deaths; }
+                sb.Append($"K/D total: {kills}/{deaths}\n");
+            }
+
+            sb.Append("Top suspicious (hashed):\n```\n");
+            int shown = 0;
+            foreach (var f in flagged)
+            {
+                if (shown >= 10) break;
+                sb.Append(f.Value).Append('\n');
+                shown++;
+            }
+            if (shown == 0) sb.Append("(none above threshold)\n");
+            sb.Append("```");
+
+            return sb.ToString();
+        }
+
+        private void SendWeeklyReport(string url, string content)
+        {
+            if (string.IsNullOrEmpty(content)) return;
+            if (content.Length > 1900) content = content.Substring(0, 1900) + "…";
+
+            string body = JsonConvert.SerializeObject(new Dictionary<string, object>
+            {
+                ["username"] = "MogyAntiCheat",
+                ["content"] = content
+            });
+            var headers = new Dictionary<string, string> { ["Content-Type"] = "application/json" };
+
+            try
+            {
+                webrequest.Enqueue(url, body, (code, response) =>
+                {
+                    if (code >= 200 && code < 300) DebugLog("Weekly report sent.");
+                    else DebugLog($"Weekly report send failed: code={code}");
+                }, this, RequestMethod.POST, headers);
+            }
+            catch (Exception ex)
+            {
+                DebugLog($"Weekly report request error: {ex.Message}");
+            }
+        }
+
+        [ChatCommand("ac-weekly-now")]
+        void CmdWeeklyNow(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+
+            if (!GetWeeklyReportAccepted()) { SendReply(player, Msg(player, "WeeklyNotAccepted")); return; }
+            string url = GetWeeklyReportWebhookUrl();
+            if (string.IsNullOrWhiteSpace(url)) { SendReply(player, Msg(player, "WeeklyNoUrl")); return; }
+
+            SendWeeklyReport(url, BuildWeeklyReportContent());
+            WriteWeeklyReportLastSent(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            SendReply(player, Msg(player, "WeeklySentNow"));
         }
 
         private void FetchMLSuggestion(ulong playerId)
@@ -1586,7 +1931,7 @@ namespace Oxide.Plugins
             EnqueueTelemetry(new ShotTelemetryEvent
             {
                 TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                PlayerId = player.userID,
+                PlayerHash = HashPlayerId(player.userID),
                 WeaponName = wName,
                 Distance = 0f,
                 Hit = false,
@@ -1671,7 +2016,7 @@ namespace Oxide.Plugins
             EnqueueTelemetry(new ShotTelemetryEvent
             {
                 TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                PlayerId = attacker.userID,
+                PlayerHash = HashPlayerId(attacker.userID),
                 WeaponName = wName,
                 Distance = dist,
                 Hit = true,
@@ -1751,7 +2096,7 @@ namespace Oxide.Plugins
             EnqueueTelemetry(new ShotTelemetryEvent
             {
                 TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                PlayerId = victim.userID,
+                PlayerHash = HashPlayerId(victim.userID),
                 EventType = "death"
             });
 
@@ -1791,7 +2136,7 @@ namespace Oxide.Plugins
             EnqueueTelemetry(new ShotTelemetryEvent
             {
                 TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                PlayerId = attacker.userID,
+                PlayerHash = HashPlayerId(attacker.userID),
                 WeaponName = wName,
                 Distance = killDist,
                 Hit = true,

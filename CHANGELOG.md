@@ -4,6 +4,23 @@ All notable changes to this project should be documented in this file.
 
 The format is based on Keep a Changelog.
 
+## [1.10.0] - 2026-07-10
+
+### Added
+- Opt-in **anonymized weekly telemetry report** (`WeeklyReport` config block) that delivers an
+  aggregated summary to a Discord webhook to help improve detection thresholds and ML tuning.
+  - Off by default; requires `WeeklyReport.Accepted = true` (informed-consent gate).
+  - `/ac-weekly-now` admin command to send a report immediately for testing.
+  - On-load server-console disclosure of the current on/off state.
+- `docs/DATA_COLLECTION.md` — full data-collection notice.
+
+### Changed
+- Telemetry now stores player identity as an irreversible per-server HMAC-SHA256 hash
+  (`ShotTelemetryEvent.PlayerHash`) instead of the raw SteamID. Applies to event logs and the
+  ML `/ingest` payload. No names, IP addresses, or raw SteamIDs are transmitted.
+- New data files: `MogyAntiCheat_Salt.json` (per-server hash salt, never transmitted) and
+  `MogyAntiCheat_WeeklyReport.json` (last-send timestamp).
+
 ## [1.9.8] - 2026-05-17
 
 ### Added (Milestone M9: In-game Admin Tools & Visualization)

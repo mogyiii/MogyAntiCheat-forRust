@@ -72,6 +72,26 @@ Fields:
 - `EmitSuspicionEvents` (`bool`, default `true`)
 - `EmitPenaltyEvents` (`bool`, default `true`)
 
+## `WeeklyReport`
+
+- Type: `object`
+- Purpose: optional, opt-in **anonymized** weekly telemetry summary sent to the plugin developer.
+- See `DATA_COLLECTION.md` for the full data-collection notice. Nothing is sent unless `Accepted` is `true`.
+
+Fields:
+- `Enabled` (`bool`, default `true`) — feature toggle.
+- `Accepted` (`bool`, default `false`) — **consent gate**. No data leaves the server until this is `true`.
+- `DiscordWebhookUrl` (`string`, default `""`) — Discord webhook the weekly summary is delivered to.
+- `IntervalDays` (`int`, default `7`, min `1`) — minimum days between reports.
+- `IncludeKDA` (`bool`, default `true`) — include aggregate kill/death totals.
+- `IncludeLagswitch` (`bool`, default `true`) — include aggregate lagswitch incident totals.
+
+Notes:
+- Player identity in the report (and in the ML `/ingest` telemetry) is an irreversible per-server
+  HMAC-SHA256 hash of the SteamID. The salt lives in `MogyAntiCheat_Salt.json` and is never sent.
+- No names, IP addresses, or raw SteamIDs are ever transmitted.
+- Last-send timestamp is persisted in `MogyAntiCheat_WeeklyReport.json`.
+
 ## Planned Keys (M2+)
 
 ## `PenaltyTiers`

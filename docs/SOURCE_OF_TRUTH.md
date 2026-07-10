@@ -1,6 +1,6 @@
 # MogyAntiCheat Source of Truth
 
-This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.9.8).
+This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.10.0).
 
 ## Purpose
 
@@ -60,6 +60,9 @@ Out of scope:
 - `_telemetryQueue: List<ShotTelemetryEvent>`
   - In-memory buffer of shot, hit, kill, and death events.
   - Flushed on timer or when size reaches `TelemetryQueueMaxSize`.
+  - Player identity is stored as `PlayerHash` (irreversible per-server HMAC-SHA256 of the SteamID), never the raw SteamID.
+- `_telemetrySalt: string`
+  - Random per-server salt used to hash SteamIDs. Loaded from / persisted to `MogyAntiCheat_Salt.json`; never transmitted.
 - `_mlSuggestionCache: Dictionary<ulong, Dictionary<string, MLSuggestionCacheEntry>>`
   - Per-player, per-weapon cached ML confidence scores fetched from the ML service.
   - Each entry holds `FetchedAtMs`, `Confidence`, `SuggestedNerfPct`, `AnomalyType`, `Reason`.
@@ -78,7 +81,9 @@ Persistence:
 - Saved on `OnServerSave` and `Unload`.
 - `MogyAntiCheat_Stats.json` — weapon history (shots/hits) per player.
 - `MogyAntiCheat_KDA.json` — K/D/A counters per player.
-- `MogyAntiCheat_Events_<YYYYMMDD>.log` — JSON Lines telemetry (shot/hit/kill/death events), written to runtime data directory.
+- `MogyAntiCheat_Events_<YYYYMMDD>.log` — JSON Lines telemetry: one event object per line (shot/hit/kill/death, hashed player IDs), no batch wrapper. The ML `/ingest` POST body is a bare JSON array of the same event objects (no `server_id`/`timestamp`/`batch_id`/`count` envelope).
+- `MogyAntiCheat_Salt.json` — per-server random salt for SteamID hashing (never transmitted).
+- `MogyAntiCheat_WeeklyReport.json` — last weekly-report send timestamp.
 - Pending shots, suspicion cache, ping stats, and damage contributors are runtime-only.
 
 Runtime compatibility:
@@ -317,6 +322,24 @@ When plugin behavior changes, update all of:
 2. `README.md`.
 3. This file (`docs/SOURCE_OF_TRUTH.md`).
 
+
+## Weekly Report Contract (opt-in telemetry)
+
+Config under `WeeklyReport` (see `DATA_COLLECTION.md` and `CONFIG_SCHEMA.md`):
+
+- `Enabled`, `Accepted`, `DiscordWebhookUrl`, `IntervalDays`, `IncludeKDA`, `IncludeLagswitch`.
+
+Behavior:
+
+- A timer runs hourly (`WeeklyReportTick`). Nothing is sent unless `Enabled` and `Accepted` are both `true`
+  and a webhook URL is configured.
+- On first activation the last-send timestamp is seeded; the first report is sent only after `IntervalDays` elapse.
+- The report is an aggregated, anonymized summary (server hostname, tracked-player count, shot/hit totals and
+  overall accuracy, optional lagswitch and K/D totals, and a top-N list of suspicious players by hashed ID).
+- Delivered as a Discord-compatible payload (`username` + `content`), capped to Discord's content length.
+- All player identifiers in the report are per-server HMAC hashes; no names, IPs, or raw SteamIDs are included.
+- On load, `LogDataCollectionDisclosure` prints the current on/off state to the server console.
+- `/ac-weekly-now` (admin) sends a report immediately for testing; requires `Accepted = true` and a webhook URL.
 
 ## Webhook Delivery Contract
 
