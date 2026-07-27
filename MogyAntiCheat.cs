@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -40,6 +40,7 @@ namespace Oxide.Plugins
         private const string DefaultWeeklyReportWebhook = "__WEEKLY_WEBHOOK__";
         private const string SaltDataFileName = "MogyAntiCheat_Salt";
         private const string WeeklyReportDataFileName = "MogyAntiCheat_WeeklyReport";
+        private const string DailyReportDataFileName = "MogyAntiCheat_DailyReport";
 
         private DynamicConfigFile _storedData;
         private DynamicConfigFile _kdaData;
@@ -63,7 +64,9 @@ namespace Oxide.Plugins
         private Timer _webhookPumpTimer;
         private Timer _telemetryFlushTimer;
         private Timer _weeklyReportTimer;
+        private Timer _dailyReportTimer;
         private DynamicConfigFile _weeklyReportData;
+        private DynamicConfigFile _dailyReportData;
         private string _telemetrySalt = string.Empty;
         private bool _webhookRequestInFlight;
         private float _webhookWindowStart;
@@ -91,6 +94,9 @@ namespace Oxide.Plugins
             ["WeeklyNotAccepted"] = "[MogyAC] Weekly report is not accepted. Set WeeklyReport.Accepted = true first.",
             ["WeeklyNoUrl"] = "[MogyAC] No weekly report webhook URL is configured.",
             ["WeeklySentNow"] = "[MogyAC] Weekly report sent.",
+            ["DailyNoUrl"] = "[MogyAC] No daily report webhook URL is configured (DailyReport.DiscordWebhookUrl).",
+            ["DailySentNow"] = "[MogyAC] Daily report sent to the configured webhook.",
+            ["HelpDailyNow"] = "/ac-daily-now - Send the daily suspicion report to your webhook now.",
             ["StatsHeader"] = "=== MogyAC STATS: {0} ===",
             ["GlobalDamageLabel"] = "GLOBAL DAMAGE",
             ["WeaponLine"] = "{0}: {1:P1} ({2} shots)",
@@ -192,6 +198,9 @@ namespace Oxide.Plugins
             ["WeeklyNotAccepted"] = "[MogyAC] A heti riport nincs elfogadva. Előbb állítsd: WeeklyReport.Accepted = true.",
             ["WeeklyNoUrl"] = "[MogyAC] Nincs beállítva heti riport webhook URL.",
             ["WeeklySentNow"] = "[MogyAC] Heti riport elküldve.",
+            ["DailyNoUrl"] = "[MogyAC] Nincs beállítva napi riport webhook URL (DailyReport.DiscordWebhookUrl).",
+            ["DailySentNow"] = "[MogyAC] Napi riport elküldve a beállított webhookra.",
+            ["HelpDailyNow"] = "/ac-daily-now - Napi gyanú-riport azonnali küldése a webhookodra.",
             ["StatsHeader"] = "=== MogyAC STAT: {0} ===",
             ["GlobalDamageLabel"] = "GLOBAL SEBZÉS",
             ["WeaponLine"] = "{0}: {1:P1} ({2} lövés)",
@@ -530,6 +539,7 @@ namespace Oxide.Plugins
             _storedData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_Stats");
             _kdaData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_KDA");
             _weeklyReportData = Interface.Oxide.DataFileSystem.GetFile(WeeklyReportDataFileName);
+            _dailyReportData = Interface.Oxide.DataFileSystem.GetFile(DailyReportDataFileName);
             _debugLogPath = Path.Combine(_runtimeDataDirectory, DebugLogFileName);
             LoadStats();
             LoadKDAStats();
@@ -540,6 +550,9 @@ namespace Oxide.Plugins
             _telemetryFlushTimer = timer.Every(TelemetryFlushIntervalSeconds, FlushTelemetryQueue);
             StartAimSampling();
             _weeklyReportTimer = timer.Every(3600f, WeeklyReportTick);
+            // Ticks every 15 minutes so a 1-hour IntervalHours setting is actually honoured;
+            // the tick itself does nothing until the interval has elapsed.
+            _dailyReportTimer = timer.Every(900f, DailyReportTick);
 
             Puts($"Runtime detected: {_runtimeName} | Data directory: {_runtimeDataDirectory}");
             LogDataCollectionDisclosure();
@@ -556,6 +569,7 @@ namespace Oxide.Plugins
             _webhookPumpTimer?.Destroy();
             _telemetryFlushTimer?.Destroy();
             _weeklyReportTimer?.Destroy();
+            _dailyReportTimer?.Destroy();
             _aimSampleTimer?.Destroy();
             _aimTrails.Clear();
             _lastShotAim.Clear();
@@ -738,6 +752,29 @@ namespace Oxide.Plugins
             };
         }
 
+        // The operator's own daily digest, delivered to their own Discord webhook. Distinct from
+        // WeeklyReport in every way that matters: that one is an opt-in, anonymized summary sent to
+        // the plugin developer, this one is the server owner's own data about their own players, so
+        // it defaults to real names — they can already see them in game and in /ac-dashboard.
+        private static Dictionary<string, object> BuildDefaultDailyReportConfig()
+        {
+            return new Dictionary<string, object>
+            {
+                ["Enabled"] = false,
+                ["DiscordWebhookUrl"] = "",
+                ["IntervalHours"] = 24,
+                ["TopCount"] = 10,
+                // Turn off if the webhook lands in a channel more people than the staff can read.
+                ["IncludeNames"] = true,
+                ["IncludeSteamIds"] = true,
+                ["IncludeLagswitch"] = true,
+                ["IncludeKDA"] = true,
+                // Players below this suspicion score are left out entirely, so a quiet day sends a
+                // short "nothing to report" rather than a list of ordinary players.
+                ["MinSuspicionScore"] = 0.35
+            };
+        }
+
         protected override void LoadDefaultConfig()
         {
             Config["Weapons"] = new Dictionary<string, object>
@@ -772,6 +809,7 @@ namespace Oxide.Plugins
 
             Config["WeaponFallback"] = BuildDefaultWeaponFallbackConfig();
             Config["AimTracking"] = BuildDefaultAimTrackingConfig();
+            Config["DailyReport"] = BuildDefaultDailyReportConfig();
             Config["MissExpirySeconds"] = 20.0;
             Config["MaxHitDistance"] = (double)DefaultMaxHitDistance;
             Config["DefaultLanguage"] = DefaultLanguageFallback;
@@ -1000,6 +1038,18 @@ namespace Oxide.Plugins
                     foreach (var entry in defaults)
                         if (!families.ContainsKey(entry.Key)) { families[entry.Key] = entry.Value; changed = true; }
                 }
+            }
+
+            var dailyCfg = Config["DailyReport"] as Dictionary<string, object>;
+            if (dailyCfg == null)
+            {
+                Config["DailyReport"] = BuildDefaultDailyReportConfig();
+                changed = true;
+            }
+            else
+            {
+                foreach (var entry in BuildDefaultDailyReportConfig())
+                    if (!dailyCfg.ContainsKey(entry.Key)) { dailyCfg[entry.Key] = entry.Value; changed = true; }
             }
 
             var aimCfg = Config["AimTracking"] as Dictionary<string, object>;
@@ -1793,6 +1843,311 @@ namespace Oxide.Plugins
         }
 
         // Runs hourly; sends the report only when at least IntervalDays have passed since the last send.
+        // ====================================================================================
+        // Daily operator report
+        // ====================================================================================
+
+        private Dictionary<string, object> GetDailyReportConfig()
+        {
+            return Config["DailyReport"] as Dictionary<string, object>;
+        }
+
+        private bool GetDailyReportBool(string key, bool fallback)
+        {
+            var cfg = GetDailyReportConfig();
+            if (cfg == null || !cfg.ContainsKey(key)) return fallback;
+            try { return Convert.ToBoolean(cfg[key]); } catch { return fallback; }
+        }
+
+        private int GetDailyReportInt(string key, int fallback, int min, int max)
+        {
+            var cfg = GetDailyReportConfig();
+            if (cfg == null || !cfg.ContainsKey(key)) return fallback;
+            try { return Mathf.Clamp(Convert.ToInt32(cfg[key]), min, max); } catch { return fallback; }
+        }
+
+        private float GetDailyReportFloat(string key, float fallback)
+        {
+            var cfg = GetDailyReportConfig();
+            if (cfg == null || !cfg.ContainsKey(key)) return fallback;
+            try { return Convert.ToSingle(cfg[key]); } catch { return fallback; }
+        }
+
+        private string GetDailyReportWebhookUrl()
+        {
+            var cfg = GetDailyReportConfig();
+            if (cfg == null || !cfg.ContainsKey("DiscordWebhookUrl")) return string.Empty;
+            return cfg["DiscordWebhookUrl"] as string ?? string.Empty;
+        }
+
+        // One player's standing in the digest.
+        private class DailyReportRow
+        {
+            public ulong PlayerId;
+            public string Name;
+            public string WorstWeapon;
+            public float WorstAccuracy;
+            public int Samples;
+            public float Nerf = 1f;
+            public int LagswitchIncidents;
+            public int Kills;
+            public int Deaths;
+            public float Score;
+        }
+
+        // Wilson score lower bound of a hit ratio at ~95% confidence.
+        //
+        // Ranking on raw accuracy puts eleven-for-eleven above forty-of-forty-five, which is
+        // backwards: the short window is mostly luck, and the plugin's own metric produces plenty
+        // of them (RegisterHit drops misses older than MissExpirySeconds, so a slow-firing player
+        // reads as perfect). The lower bound asks "how high is this player's true rate, pessimistically"
+        // and small samples answer conservatively on their own, with no special-casing.
+        private static float WilsonLowerBound(float ratio, int samples)
+        {
+            if (samples <= 0) return 0f;
+            const float z = 1.96f;
+            float p = Mathf.Clamp01(ratio);
+            float n = samples;
+            float zz = z * z;
+            float denominator = 1f + zz / n;
+            float centre = (p + zz / (2f * n)) / denominator;
+            float margin = z * Mathf.Sqrt(p * (1f - p) / n + zz / (4f * n * n)) / denominator;
+            return Mathf.Clamp01(centre - margin);
+        }
+
+        // A single 0-1 number so the digest can be ordered by "look at this one first".
+        // Accuracy over the weapon's own threshold is the backbone; the damage penalty the plugin
+        // already decided on and lagswitch incidents add to it. Deliberately simple and local: the
+        // ML service may not be running, and a report that only works with it would mostly not work.
+        private float ComputeSuspicionScore(DailyReportRow row, float maxAccuracy)
+        {
+            float score = 0f;
+            if (row.Samples >= 10 && maxAccuracy < 1f)
+            {
+                float confident = WilsonLowerBound(row.WorstAccuracy, row.Samples);
+                if (confident > maxAccuracy)
+                {
+                    float headroom = Mathf.Max(0.01f, 1f - maxAccuracy);
+                    score += 0.6f * Mathf.Clamp01((confident - maxAccuracy) / headroom);
+                }
+            }
+            // Nerf is 1.0 for untouched players and 0 for fully nulled ones.
+            score += 0.25f * Mathf.Clamp01(1f - row.Nerf);
+            score += 0.15f * Mathf.Clamp01(row.LagswitchIncidents / 5f);
+            return Mathf.Clamp01(score);
+        }
+
+        private List<DailyReportRow> BuildDailyReportRows(long sinceMs)
+        {
+            var rows = new List<DailyReportRow>();
+
+            foreach (var playerEntry in _playerStats)
+            {
+                var row = new DailyReportRow { PlayerId = playerEntry.Key };
+                float worstMaxAccuracy = 1f;
+                float bestOver = float.MinValue;
+
+                foreach (var weaponEntry in playerEntry.Value)
+                {
+                    var data = weaponEntry.Value;
+                    if (data == null || data.History.Count < 10) continue;
+
+                    var evaluation = EvaluateWeapon(weaponEntry.Key, data);
+                    // "Worst" means furthest over its own threshold, not simply highest accuracy —
+                    // 70% with a sniper is ordinary, 70% with an LMG is not. A weapon with no
+                    // threshold (unconfigured or explosive) can never be the reason to look.
+                    float over = evaluation.MaxAccuracy < 1f
+                        ? evaluation.Accuracy - evaluation.MaxAccuracy
+                        : float.MinValue;
+                    if (row.WorstWeapon == null || over > bestOver)
+                    {
+                        bestOver = over;
+                        row.WorstWeapon = weaponEntry.Key;
+                        row.WorstAccuracy = evaluation.Accuracy;
+                        row.Samples = evaluation.SampleCount;
+                        worstMaxAccuracy = evaluation.MaxAccuracy;
+                    }
+                }
+
+                if (row.WorstWeapon == null) continue;
+
+                row.Nerf = GetLowestNerf(playerEntry.Key);
+
+                // Incidents carry a timestamp, so unlike the accuracy figures these really can be
+                // limited to the reporting period.
+                List<LagSwitchIncident> incidents;
+                if (_lagswitchIncidents.TryGetValue(playerEntry.Key, out incidents) && incidents != null)
+                    for (int i = 0; i < incidents.Count; i++)
+                        if (incidents[i].TimestampMs >= sinceMs) row.LagswitchIncidents++;
+
+                PlayerKDAStats kda;
+                if (_playerKDAStats.TryGetValue(playerEntry.Key, out kda) && kda != null)
+                {
+                    row.Kills = kda.Kills;
+                    row.Deaths = kda.Deaths;
+                }
+
+                row.Score = ComputeSuspicionScore(row, worstMaxAccuracy);
+                row.Name = ResolvePlayerName(playerEntry.Key);
+                rows.Add(row);
+            }
+
+            rows.Sort((a, b) => b.Score.CompareTo(a.Score));
+            return rows;
+        }
+
+        private string ResolvePlayerName(ulong playerId)
+        {
+            try
+            {
+                var online = BasePlayer.FindByID(playerId);
+                if (online != null && !string.IsNullOrEmpty(online.displayName)) return online.displayName;
+                var sleeper = BasePlayer.FindSleeping(playerId);
+                if (sleeper != null && !string.IsNullOrEmpty(sleeper.displayName)) return sleeper.displayName;
+            }
+            catch { }
+            return null;
+        }
+
+        // Discord caps a message at 2000 characters, so the digest is built to be trimmed: the
+        // headline totals first, then as many player rows as fit.
+        private string BuildDailyReportContent()
+        {
+            string server = ConVar.Server.hostname ?? "unknown";
+            int hours = GetDailyReportInt("IntervalHours", 24, 1, 168);
+            int topCount = GetDailyReportInt("TopCount", 10, 1, 25);
+            float minScore = GetDailyReportFloat("MinSuspicionScore", 0.35f);
+            bool includeNames = GetDailyReportBool("IncludeNames", true);
+            bool includeIds = GetDailyReportBool("IncludeSteamIds", true);
+
+            long sinceMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - (long)hours * 3600000L;
+            var rows = BuildDailyReportRows(sinceMs);
+            var flagged = rows.FindAll(r => r.Score >= minScore);
+
+            int totalShots = 0, totalHits = 0, nerfedPlayers = 0;
+            foreach (var playerEntry in _playerStats)
+            {
+                foreach (var weaponEntry in playerEntry.Value)
+                {
+                    var history = weaponEntry.Value?.History;
+                    if (history == null) continue;
+                    totalShots += history.Count;
+                    for (int i = 0; i < history.Count; i++) if (history[i].IsHit) totalHits++;
+                }
+            }
+            foreach (var row in rows) if (row.Nerf < 1f) nerfedPlayers++;
+
+            float overallAccuracy = totalShots > 0 ? (float)totalHits / totalShots : 0f;
+
+            var sb = new StringBuilder();
+            sb.Append("**[MogyAC] Daily report** — `").Append(server).Append("`\n");
+            sb.Append($"Every {hours}h | Tracked players: {rows.Count} | Damage-reduced now: {nerfedPlayers}\n");
+            // Accuracy comes from each weapon's rolling window (the last SampleCount shots), which
+            // is the same number the plugin acts on. It is current state, not a total for the
+            // period, and saying otherwise would misrepresent it.
+            sb.Append($"Rolling windows: {totalShots} shots, {totalHits} hits ({overallAccuracy:P0})\n");
+
+            if (GetDailyReportBool("IncludeLagswitch", true))
+            {
+                int incidentPlayers = 0, incidentTotal = 0;
+                foreach (var entry in _lagswitchIncidents)
+                {
+                    if (entry.Value == null) continue;
+                    int recent = 0;
+                    for (int i = 0; i < entry.Value.Count; i++)
+                        if (entry.Value[i].TimestampMs >= sinceMs) recent++;
+                    if (recent == 0) continue;
+                    incidentPlayers++;
+                    incidentTotal += recent;
+                }
+                sb.Append($"Lagswitch incidents (last {hours}h): {incidentTotal} ({incidentPlayers} players)\n");
+            }
+
+            if (flagged.Count == 0)
+            {
+                sb.Append($"\nNo player scored above {minScore:F2}. Nothing to review.");
+                return sb.ToString();
+            }
+
+            sb.Append($"\n**Most suspicious ({Math.Min(topCount, flagged.Count)} of {flagged.Count} above {minScore:F2}):**\n```\n");
+            int shown = 0;
+            foreach (var row in flagged)
+            {
+                if (shown >= topCount) break;
+
+                string who;
+                if (includeNames && !string.IsNullOrEmpty(row.Name))
+                    who = includeIds ? $"{row.Name} ({row.PlayerId})" : row.Name;
+                else if (includeIds)
+                    who = row.PlayerId.ToString();
+                else
+                    who = HashPlayerId(row.PlayerId);
+
+                var line = new StringBuilder();
+                line.Append($"{row.Score:F2} | {who} | {row.WorstWeapon} ")
+                    .Append($"acc={row.WorstAccuracy:P0} n={row.Samples}");
+                if (row.Nerf < 1f) line.Append($" | dmg={row.Nerf:P0}");
+                if (row.LagswitchIncidents > 0) line.Append($" | lag={row.LagswitchIncidents}");
+                if (GetDailyReportBool("IncludeKDA", true) && (row.Kills > 0 || row.Deaths > 0))
+                    line.Append($" | K/D={row.Kills}/{row.Deaths}");
+
+                // Stop before overrunning Discord's limit rather than getting truncated mid-row.
+                if (sb.Length + line.Length + 16 > 1900) break;
+                sb.Append(line).Append('\n');
+                shown++;
+            }
+            sb.Append("```");
+            sb.Append("\nScore combines accuracy over the weapon's own threshold, applied damage ")
+              .Append("reduction and lagswitch incidents. It ranks who to look at — it is not proof.");
+
+            return sb.ToString();
+        }
+
+        private long ReadDailyReportLastSent()
+        {
+            try
+            {
+                var data = _dailyReportData.ReadObject<Dictionary<string, long>>();
+                long value;
+                if (data != null && data.TryGetValue("lastSentMs", out value)) return value;
+            }
+            catch { }
+            return 0;
+        }
+
+        private void WriteDailyReportLastSent(long ms)
+        {
+            try { _dailyReportData.WriteObject(new Dictionary<string, long> { ["lastSentMs"] = ms }); }
+            catch (Exception ex) { DebugLog($"Daily report state save failed: {ex.Message}"); }
+        }
+
+        private void DailyReportTick()
+        {
+            try
+            {
+                if (!GetDailyReportBool("Enabled", false)) return;
+                string url = GetDailyReportWebhookUrl();
+                if (string.IsNullOrWhiteSpace(url)) return;
+
+                long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                long lastSent = ReadDailyReportLastSent();
+
+                // First activation seeds the clock, so enabling the feature does not immediately
+                // fire a report covering whatever happened to be in memory.
+                if (lastSent == 0) { WriteDailyReportLastSent(nowMs); return; }
+
+                long intervalMs = (long)GetDailyReportInt("IntervalHours", 24, 1, 168) * 3600000L;
+                if (nowMs - lastSent < intervalMs) return;
+
+                SendDiscordReport(url, BuildDailyReportContent(), "daily report");
+                WriteDailyReportLastSent(nowMs);
+            }
+            catch (Exception ex)
+            {
+                DebugLog($"Daily report tick failed: {ex.Message}");
+            }
+        }
+
         private void WeeklyReportTick()
         {
             try
@@ -1919,6 +2274,12 @@ namespace Oxide.Plugins
 
         private void SendWeeklyReport(string url, string content)
         {
+            SendDiscordReport(url, content, "weekly report");
+        }
+
+        // Shared Discord delivery for both digests. `label` only appears in debug logs.
+        private void SendDiscordReport(string url, string content, string label)
+        {
             if (string.IsNullOrEmpty(content)) return;
             if (content.Length > 1900) content = content.Substring(0, 1900) + "…";
 
@@ -1933,14 +2294,28 @@ namespace Oxide.Plugins
             {
                 webrequest.Enqueue(url, body, (code, response) =>
                 {
-                    if (code >= 200 && code < 300) DebugLog("Weekly report sent.");
-                    else DebugLog($"Weekly report send failed: code={code}");
+                    if (code >= 200 && code < 300) DebugLog($"{label} sent.");
+                    else DebugLog($"{label} send failed: code={code}");
                 }, this, RequestMethod.POST, headers);
             }
             catch (Exception ex)
             {
-                DebugLog($"Weekly report request error: {ex.Message}");
+                DebugLog($"{label} request error: {ex.Message}");
             }
+        }
+
+        [ChatCommand("ac-daily-now")]
+        void CmdDailyNow(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+
+            string url = GetDailyReportWebhookUrl();
+            if (string.IsNullOrWhiteSpace(url)) { SendReply(player, Msg(player, "DailyNoUrl")); return; }
+
+            // Deliberately does not require Enabled: this is how an operator tests the webhook
+            // before switching the schedule on. It does not advance the schedule either.
+            SendDiscordReport(url, BuildDailyReportContent(), "daily report");
+            SendReply(player, Msg(player, "DailySentNow"));
         }
 
         [ChatCommand("ac-weekly-now")]
@@ -3860,6 +4235,7 @@ namespace Oxide.Plugins
             report += Msg(player, "HelpExport") + "\n";
             report += Msg(player, "HelpConfigTune") + "\n";
             report += Msg(player, "HelpSuggest") + "\n";
+            report += Msg(player, "HelpDailyNow") + "\n";
             report += Msg(player, "HelpHelp");
             SendReply(player, report);
         }

@@ -1,4 +1,4 @@
-# Mogy's Anti-Cheat for Rust (Oxide/uMod + Carbon)
+﻿# Mogy's Anti-Cheat for Rust (Oxide/uMod + Carbon)
 
 [Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
@@ -53,6 +53,8 @@ The plugin does not scan files or processes. It observes combat events and compu
 - ML service integration: optional external confidence scoring and auto-tuning recommendations.
 - Offline trainer that calibrates the config from your own event logs — see
   [`docs/ML_TRAINING.md`](docs/ML_TRAINING.md).
+- Daily suspicion digest to your own Discord webhook (`DailyReport`), ranked so the most
+  worth-checking player is first.
 
 **Admin & Data:**
 - Live admin dashboard: player overview, nerf status, override tracking.
@@ -152,6 +154,7 @@ To customize text:
 - `/ac-debug-log [clear]` - Show/clear debug log file path.
 - `/ac-why [weaponShortName|active]` - Explain why nerf is or is not applied for a weapon.
 - `/ac-weekly-now` - Send the anonymized weekly telemetry report immediately (for testing; requires opt-in).
+- `/ac-daily-now` - Send the daily suspicion digest to your own Discord webhook immediately (for testing).
 - `/ac-help` - Show available admin command list.
 
 ## Anonymous Weekly Report (opt-in)

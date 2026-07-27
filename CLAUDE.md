@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -34,7 +34,7 @@ Query methods: `GetApiVersion()` → `string`, `GetPlayerAcState(ulong playerId)
 
 **Webhook Pipeline**: Optional async HTTP delivery with rate limiting, exponential backoff, Discord auto-detection, and a configurable queue. Never blocks the main game thread.
 
-**Admin Commands**: `/ac-check`, `/ac-list`, `/ac-reset`, `/ac-lang`, `/ac-debug`, `/ac-weapon`, `/ac-debug-log`, `/ac-why`, `/ac-help`
+**Admin Commands**: `/ac-check`, `/ac-list`, `/ac-reset`, `/ac-lang`, `/ac-debug`, `/ac-weapon`, `/ac-debug-log`, `/ac-why`, `/ac-daily-now`, `/ac-help`
 
 **Runtime Detection**: On `Init`, plugin scans loaded assemblies to detect Oxide vs Carbon and resolves the correct data directory path.
 

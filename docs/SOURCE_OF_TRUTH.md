@@ -1,4 +1,4 @@
-# MogyAntiCheat Source of Truth
+﻿# MogyAntiCheat Source of Truth
 
 This document defines the intended behavior of the current plugin implementation (`MogyAntiCheat.cs`, version 1.10.0).
 
@@ -84,6 +84,7 @@ Persistence:
 - `MogyAntiCheat_Events_<YYYYMMDD>.log` — JSON Lines telemetry: one event object per line (shot/hit/kill/death, hashed player IDs), no batch wrapper. The ML `/ingest` POST body is a bare JSON array of the same event objects (no `server_id`/`timestamp`/`batch_id`/`count` envelope).
 - `MogyAntiCheat_Salt.json` — per-server random salt for SteamID hashing (never transmitted).
 - `MogyAntiCheat_WeeklyReport.json` — last weekly-report send timestamp.
+- `MogyAntiCheat_DailyReport.json` — last daily-report send timestamp.
 - Pending shots, suspicion cache, ping stats, and damage contributors are runtime-only.
 
 Runtime compatibility:
@@ -252,6 +253,8 @@ Also top-level:
 - `MaxHitDistance` (float, default `500`) — distance sanity bound; `0` disables it
 - `WeaponFallback` (object) — `Enabled` (bool, default `true`) plus `Families`, one entry per
   weapon family with the same three fields
+- `AimTracking` (object) — view-direction sampling for the aim-kinematics telemetry
+- `DailyReport` (object) — operator-facing suspicion digest to the server's own Discord webhook
 
 ### Weapon Settings Resolution
 
@@ -305,6 +308,11 @@ covered on purpose, and no warning is emitted. `/ac-why` reports which of the th
   - Admin-only.
   - Sends outcome feedback to the configured ML service endpoint (`POST /feedback`).
   - No-op (with error message) when `MLService.Enabled` is `false` or endpoint is not configured.
+- `/ac-daily-now`
+  - Admin-only.
+  - Sends the daily suspicion digest to `DailyReport.DiscordWebhookUrl` immediately.
+  - Works while `DailyReport.Enabled` is `false` (so the webhook can be tested before scheduling),
+    and does not advance the schedule.
 - `/ac-dashboard`
   - Admin-only.
   - Prints a live tabular view of all tracked players: name, current nerf, ping average, lagswitch incident count, K/D/A, and manual override status.

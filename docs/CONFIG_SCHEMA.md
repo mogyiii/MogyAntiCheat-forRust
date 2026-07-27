@@ -70,6 +70,48 @@ The shipped family thresholds are deliberately lenient cross-server guesses mean
 outliers, not to fine-tune. Run `ml-service/train.py` on your own event logs to replace them with
 measured values — see `docs/ML_TRAINING.md`.
 
+## `DailyReport`
+
+- Type: `object`
+- Purpose: a recurring digest of the most suspicious players, delivered to **your own** Discord
+  webhook. Distinct from `WeeklyReport` in every way that matters: that one is an opt-in,
+  anonymized summary sent to the plugin developer; this is your server's own data about your own
+  players, so it defaults to real names.
+
+Fields:
+- `Enabled` (`bool`, default `false`)
+- `DiscordWebhookUrl` (`string`, default `""`) — your webhook. Nothing is sent without it.
+- `IntervalHours` (`int`, default `24`, range `1..168`) — delivery cadence. The scheduler ticks
+  every 15 minutes and sends when the interval has elapsed; enabling the feature seeds the clock
+  rather than firing immediately.
+- `TopCount` (`int`, default `10`, range `1..25`) — maximum players listed.
+- `MinSuspicionScore` (`float`, default `0.35`) — players below this are omitted, so a quiet day
+  sends "nothing to review" instead of a list of ordinary players.
+- `IncludeNames` (`bool`, default `true`) — real display names. Turn off if the webhook lands in a
+  channel wider than your staff; the report then falls back to the hashed identifier.
+- `IncludeSteamIds` (`bool`, default `true`)
+- `IncludeLagswitch` (`bool`, default `true`)
+- `IncludeKDA` (`bool`, default `true`)
+
+Command: `/ac-daily-now` sends immediately without waiting for the schedule and without advancing
+it — for testing the webhook. It works even when `Enabled` is `false`, as long as a URL is set.
+
+### What the score means
+
+Each listed player gets a 0-1 suspicion score, used only to order the list:
+
+- **60%** — how far the weapon's accuracy sits above *that weapon's own* threshold. The accuracy is
+  first passed through a **Wilson score lower bound**, so a short window counts for less: eleven
+  hits from eleven shots is mostly luck and ranks below forty-of-forty-five. Without this the list
+  fills with the plugin's own metric artifact, since `RegisterHit` drops misses older than
+  `MissExpirySeconds` and a slow-firing player reads as perfect.
+- **25%** — the damage reduction the plugin already applied.
+- **15%** — lagswitch incidents within the reporting period.
+
+Note on the period: accuracy comes from each weapon's **rolling window** (the last `SampleCount`
+shots), which is current state rather than a total for the period — the report labels it as such.
+Lagswitch incidents are timestamped and genuinely limited to the interval.
+
 ## `AimTracking`
 
 - Type: `object`

@@ -49,6 +49,23 @@ The format is based on Keep a Changelog.
   raw measurement is still written to the event log for diagnosis.
 
 ### Added (plugin)
+- **`DailyReport` config block — operator-facing suspicion digest.** Sends a ranked list of the
+  most worth-checking players to the server owner's *own* Discord webhook on a configurable
+  interval (default 24h, off until a URL is set). Distinct from `WeeklyReport`, which is the opt-in
+  anonymized summary sent to the developer: this is your server's own data about your own players,
+  so it defaults to real names and SteamIDs, with `IncludeNames`/`IncludeSteamIds` to fall back to
+  the hashed identifier. `/ac-daily-now` sends immediately for webhook testing without advancing
+  the schedule.
+  - The ranking score is 60% accuracy above that weapon's *own* threshold, 25% applied damage
+    reduction, 15% lagswitch incidents in the period. The accuracy term uses a **Wilson score lower
+    bound**, so eleven-of-eleven ranks below forty-of-forty-five — without it the list fills with
+    the plugin's own metric artifact (RegisterHit drops misses older than `MissExpirySeconds`, so a
+    slow-firing player reads as 100%). Verified against the reference dataset: the naive version
+    flagged 9 players, 6 of them tied at the maximum score on 11-19 sample windows; the corrected
+    version flags 2 with a spread.
+  - Honest labelling: accuracy figures come from each weapon's rolling window and are reported as
+    current state, not as a total for the period. Lagswitch incidents are timestamped and genuinely
+    limited to the interval.
 - **`AimTracking` config block — aim kinematics telemetry.** Samples the view direction at 20 Hz for
   players holding a ranged weapon and records, on every `shot` event, `AimDeltaDeg` (angle since the
   previous shot), `SnapDeg` (largest angular step in the preceding 400 ms) and `SnapSettleMs` (delay
