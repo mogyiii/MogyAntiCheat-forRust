@@ -1,0 +1,2921 @@
+{
+ "baselines": {
+  "__global__": {
+   "accuracy": {
+    "center": 0.325,
+    "scale": 0.185325
+   },
+   "cadence_cv": {
+    "center": 0.647866,
+    "scale": 0.27954
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.002168
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 1.450224
+   },
+   "headshot_ratio": {
+    "center": 0.142857,
+    "scale": 0.1059
+   },
+   "hit_streak": {
+    "center": 2.0,
+    "scale": 1.4826
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.174486
+   },
+   "ping_cv": {
+    "center": 0.024654,
+    "scale": 0.027026
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.547516
+   }
+  },
+  "ak47u": {
+   "accuracy": {
+    "center": 0.35,
+    "scale": 0.185325
+   },
+   "cadence_cv": {
+    "center": 0.68037,
+    "scale": 0.239057
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.000897
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 1.049639
+   },
+   "headshot_ratio": {
+    "center": 0.16,
+    "scale": 0.093074
+   },
+   "hit_streak": {
+    "center": 2.0,
+    "scale": 1.4826
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.15928
+   },
+   "ping_cv": {
+    "center": 0.030732,
+    "scale": 0.03331
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.315994
+   }
+  },
+  "ak47u_ice": {
+   "accuracy": {
+    "center": 0.175,
+    "scale": 0.07413
+   },
+   "cadence_cv": {
+    "center": 0.745799,
+    "scale": 0.216351
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 0.675202
+   },
+   "headshot_ratio": {
+    "center": 0.188679,
+    "scale": 0.101504
+   },
+   "hit_streak": {
+    "center": 1.0,
+    "scale": 1.429366
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.219643
+   },
+   "ping_cv": {
+    "center": 0.012293,
+    "scale": 0.018225
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.876026
+   }
+  },
+  "bolt_rifle": {
+   "accuracy": {
+    "center": 0.666667,
+    "scale": 0.12355
+   },
+   "cadence_cv": {
+    "center": 0.5,
+    "scale": 1e-06
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.006091
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 1.120352
+   },
+   "headshot_ratio": {
+    "center": 0.25,
+    "scale": 0.168477
+   },
+   "hit_streak": {
+    "center": 2.0,
+    "scale": 1.4826
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.147887
+   },
+   "ping_cv": {
+    "center": 0.04858,
+    "scale": 0.032403
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.792377
+   }
+  },
+  "hmlmg": {
+   "accuracy": {
+    "center": 0.302326,
+    "scale": 0.214133
+   },
+   "cadence_cv": {
+    "center": 0.523053,
+    "scale": 0.360527
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.000444
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 0.27665
+   },
+   "headshot_ratio": {
+    "center": 0.0,
+    "scale": 0.132261
+   },
+   "hit_streak": {
+    "center": 2.0,
+    "scale": 1.4826
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.12459
+   },
+   "ping_cv": {
+    "center": 0.005594,
+    "scale": 0.008294
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.057046
+   }
+  },
+  "l96": {
+   "accuracy": {
+    "center": 0.6875,
+    "scale": 0.092662
+   },
+   "cadence_cv": {
+    "center": 0.5,
+    "scale": 1e-06
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.00707
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 1.935124
+   },
+   "headshot_ratio": {
+    "center": 0.373333,
+    "scale": 0.129882
+   },
+   "hit_streak": {
+    "center": 2.0,
+    "scale": 1.4826
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.200668
+   },
+   "ping_cv": {
+    "center": 0.033929,
+    "scale": 0.022305
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.151471
+   }
+  },
+  "lr300": {
+   "accuracy": {
+    "center": 0.275,
+    "scale": 0.14826
+   },
+   "cadence_cv": {
+    "center": 0.702171,
+    "scale": 0.306635
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.000163
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 1.531871
+   },
+   "headshot_ratio": {
+    "center": 0.183673,
+    "scale": 0.201714
+   },
+   "hit_streak": {
+    "center": 2.0,
+    "scale": 1.4826
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.271966
+   },
+   "ping_cv": {
+    "center": 0.025925,
+    "scale": 0.020965
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.282286
+   }
+  },
+  "m16a2": {
+   "accuracy": {
+    "center": 0.225,
+    "scale": 0.111195
+   },
+   "cadence_cv": {
+    "center": 1.214147,
+    "scale": 0.141802
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.001117
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 0.661176
+   },
+   "headshot_ratio": {
+    "center": 0.193548,
+    "scale": 0.072463
+   },
+   "hit_streak": {
+    "center": 1.0,
+    "scale": 1.140959
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.200259
+   },
+   "ping_cv": {
+    "center": 0.036487,
+    "scale": 0.030617
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.375076
+   }
+  },
+  "m249": {
+   "accuracy": {
+    "center": 0.24,
+    "scale": 0.177912
+   },
+   "cadence_cv": {
+    "center": 0.733919,
+    "scale": 0.235153
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.000803
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 1.004666
+   },
+   "headshot_ratio": {
+    "center": 0.126017,
+    "scale": 0.104144
+   },
+   "hit_streak": {
+    "center": 1.0,
+    "scale": 6.1645
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.25937
+   },
+   "ping_cv": {
+    "center": 0.01733,
+    "scale": 0.019264
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.366875
+   }
+  },
+  "minigun": {
+   "accuracy": {
+    "center": 0.14,
+    "scale": 0.106478
+   },
+   "cadence_cv": {
+    "center": 0.565401,
+    "scale": 0.240749
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "headshot_ratio": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "hit_streak": {
+    "center": 1.0,
+    "scale": 1.444005
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.283751
+   },
+   "ping_cv": {
+    "center": 0.010711,
+    "scale": 0.006528
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.037608
+   }
+  },
+  "mp5": {
+   "accuracy": {
+    "center": 0.4,
+    "scale": 0.333585
+   },
+   "cadence_cv": {
+    "center": 1.087305,
+    "scale": 0.087539
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 0.834805
+   },
+   "headshot_ratio": {
+    "center": 0.225,
+    "scale": 0.050793
+   },
+   "hit_streak": {
+    "center": 3.0,
+    "scale": 2.9652
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.090584
+   },
+   "ping_cv": {
+    "center": 0.027326,
+    "scale": 0.034383
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.012026
+   }
+  },
+  "rocket_launcher": {
+   "accuracy": {
+    "center": 1.0,
+    "scale": 1e-06
+   },
+   "cadence_cv": {
+    "center": 0.5,
+    "scale": 1e-06
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.00034
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "headshot_ratio": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "hit_streak": {
+    "center": 47.0,
+    "scale": 45.9606
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "ping_cv": {
+    "center": 0.033054,
+    "scale": 0.03847
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 1e-06
+   }
+  },
+  "semi_auto_rifle": {
+   "accuracy": {
+    "center": 0.35389,
+    "scale": 0.175312
+   },
+   "cadence_cv": {
+    "center": 0.351167,
+    "scale": 0.178531
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.006313
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 0.467251
+   },
+   "headshot_ratio": {
+    "center": 0.0,
+    "scale": 0.142879
+   },
+   "hit_streak": {
+    "center": 2.0,
+    "scale": 1.4826
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "ping_cv": {
+    "center": 0.030551,
+    "scale": 0.032414
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 1e-06
+   }
+  },
+  "smg": {
+   "accuracy": {
+    "center": 0.35,
+    "scale": 0.14826
+   },
+   "cadence_cv": {
+    "center": 0.623455,
+    "scale": 0.347846
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 0.002384
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 1.932034
+   },
+   "headshot_ratio": {
+    "center": 0.135135,
+    "scale": 0.070282
+   },
+   "hit_streak": {
+    "center": 2.0,
+    "scale": 1.4826
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 0.01914
+   },
+   "ping_cv": {
+    "center": 0.02393,
+    "scale": 0.026173
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 0.817748
+   }
+  },
+  "spas12": {
+   "accuracy": {
+    "center": 0.75,
+    "scale": 0.22239
+   },
+   "cadence_cv": {
+    "center": 0.284029,
+    "scale": 0.09275
+   },
+   "dping_spike_rate": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "head_streak": {
+    "center": 0.0,
+    "scale": 0.13484
+   },
+   "headshot_ratio": {
+    "center": 0.0,
+    "scale": 0.070828
+   },
+   "hit_streak": {
+    "center": 11.0,
+    "scale": 7.413
+   },
+   "longrange_share": {
+    "center": 0.0,
+    "scale": 1e-06
+   },
+   "ping_cv": {
+    "center": 0.004021,
+    "scale": 0.001415
+   },
+   "weighted_score": {
+    "center": 1.0,
+    "scale": 1e-06
+   }
+  }
+ },
+ "config_recommendation": {
+  "behaviour": {
+   "calibrated": {
+    "bogus_distance_evaluations": 1389,
+    "evaluations": 37692,
+    "flag_rate": 0.0229,
+    "flagged": 796,
+    "penalisable_evaluations": 34745,
+    "zero_damage": 479,
+    "zero_damage_rate": 0.0138
+   },
+   "current": {
+    "bogus_distance_evaluations": 1389,
+    "evaluations": 37692,
+    "flag_rate": 0.3907,
+    "flagged": 13575,
+    "penalisable_evaluations": 34745,
+    "zero_damage": 1619,
+    "zero_damage_rate": 0.0466
+   },
+   "legacy": {
+    "bogus_distance_evaluations": 0,
+    "evaluations": 37692,
+    "flag_rate": 0.2328,
+    "flagged": 8089,
+    "penalisable_evaluations": 34745,
+    "zero_damage": 1523,
+    "zero_damage_rate": 0.0438
+   }
+  },
+  "recommendations": {
+   "Weapons.ak47u.MaxAccuracy": {
+    "confidence": 0.938,
+    "current": 0.35,
+    "delta": 0.6,
+    "recommended": 0.95,
+    "source": "calibrated"
+   },
+   "Weapons.ak47u.SafeDistance": {
+    "confidence": 0.938,
+    "current": 15.0,
+    "delta": 15.5,
+    "recommended": 30.5,
+    "source": "calibrated"
+   },
+   "Weapons.ak47u_diver.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 0.843,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.ak47u_diver.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 46.6,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.ak47u_diver.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 40,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.ak47u_ice.MaxAccuracy": {
+    "confidence": 0.372,
+    "current": "unset",
+    "delta": null,
+    "recommended": 0.821,
+    "source": "calibrated"
+   },
+   "Weapons.ak47u_ice.SafeDistance": {
+    "confidence": 0.372,
+    "current": "unset",
+    "delta": null,
+    "recommended": 10.2,
+    "source": "calibrated"
+   },
+   "Weapons.ak47u_ice.SampleCount": {
+    "confidence": 0.372,
+    "current": "unset",
+    "delta": null,
+    "recommended": 40,
+    "source": "calibrated"
+   },
+   "Weapons.ak47u_jungle.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 0.843,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.ak47u_jungle.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 46.6,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.ak47u_jungle.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 40,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.ak47u_med.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 0.843,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.ak47u_med.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 46.6,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.ak47u_med.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 40,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.hmlmg.MaxAccuracy": {
+    "confidence": 0.535,
+    "current": 0.3,
+    "delta": 0.578,
+    "recommended": 0.878,
+    "source": "calibrated"
+   },
+   "Weapons.hmlmg.SafeDistance": {
+    "confidence": 0.535,
+    "current": 25.0,
+    "delta": -14.5,
+    "recommended": 10.5,
+    "source": "calibrated"
+   },
+   "Weapons.homing_missile_launcher.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 1.0,
+    "source": "family_disabled"
+   },
+   "Weapons.homing_missile_launcher.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 25.0,
+    "source": "family_disabled"
+   },
+   "Weapons.homing_missile_launcher.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 20,
+    "source": "family_disabled"
+   },
+   "Weapons.lr300_space.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 0.843,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.lr300_space.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 46.6,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.lr300_space.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 40,
+    "source": "family_fallback:auto_rifle"
+   },
+   "Weapons.m16a2.MaxAccuracy": {
+    "confidence": 0.771,
+    "current": "unset",
+    "delta": null,
+    "recommended": 0.6,
+    "source": "calibrated"
+   },
+   "Weapons.m16a2.SafeDistance": {
+    "confidence": 0.771,
+    "current": "unset",
+    "delta": null,
+    "recommended": 62.1,
+    "source": "calibrated"
+   },
+   "Weapons.m16a2.SampleCount": {
+    "confidence": 0.771,
+    "current": "unset",
+    "delta": null,
+    "recommended": 40,
+    "source": "calibrated"
+   },
+   "Weapons.mgl.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 1.0,
+    "source": "family_disabled"
+   },
+   "Weapons.mgl.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 25.0,
+    "source": "family_disabled"
+   },
+   "Weapons.mgl.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 20,
+    "source": "family_disabled"
+   },
+   "Weapons.minigun.MaxAccuracy": {
+    "confidence": 0.205,
+    "current": "unset",
+    "delta": null,
+    "recommended": 0.854,
+    "source": "calibrated"
+   },
+   "Weapons.minigun.SafeDistance": {
+    "confidence": 0.205,
+    "current": "unset",
+    "delta": null,
+    "recommended": 13.5,
+    "source": "calibrated"
+   },
+   "Weapons.minigun.SampleCount": {
+    "confidence": 0.205,
+    "current": "unset",
+    "delta": null,
+    "recommended": 50,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.bolt.MaxAccuracy": {
+    "confidence": 0.784,
+    "current": 0.65,
+    "delta": 0.273,
+    "recommended": 0.923,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.bolt.SafeDistance": {
+    "confidence": 0.784,
+    "current": 50.0,
+    "delta": -31.8,
+    "recommended": 18.2,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.l96.MaxAccuracy": {
+    "confidence": 0.714,
+    "current": 0.7,
+    "delta": 0.233,
+    "recommended": 0.933,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.l96.SafeDistance": {
+    "confidence": 0.714,
+    "current": 70.0,
+    "delta": -37.6,
+    "recommended": 32.4,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.l96.SampleCount": {
+    "confidence": 0.714,
+    "current": 10,
+    "delta": 6.0,
+    "recommended": 16,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.lr300.MaxAccuracy": {
+    "confidence": 0.892,
+    "current": 0.4,
+    "delta": 0.55,
+    "recommended": 0.95,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.lr300.SafeDistance": {
+    "confidence": 0.892,
+    "current": 25.0,
+    "delta": 40.3,
+    "recommended": 65.3,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.m249.MaxAccuracy": {
+    "confidence": 0.907,
+    "current": 0.3,
+    "delta": 0.52,
+    "recommended": 0.82,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.m249.SafeDistance": {
+    "confidence": 0.907,
+    "current": 30.0,
+    "delta": 16.5,
+    "recommended": 46.5,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.m249.SampleCount": {
+    "confidence": 0.907,
+    "current": 60,
+    "delta": -10.0,
+    "recommended": 50,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.m39.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": 0.5,
+    "delta": 0.143,
+    "recommended": 0.643,
+    "source": "family_fallback:semi_rifle"
+   },
+   "Weapons.rifle.m39.SafeDistance": {
+    "confidence": 0.3,
+    "current": 40.0,
+    "delta": 80.2,
+    "recommended": 120.2,
+    "source": "family_fallback:semi_rifle"
+   },
+   "Weapons.rifle.m39.SampleCount": {
+    "confidence": 0.3,
+    "current": 25,
+    "delta": 15.0,
+    "recommended": 40,
+    "source": "family_fallback:semi_rifle"
+   },
+   "Weapons.rifle.semiauto.MaxAccuracy": {
+    "confidence": 0.329,
+    "current": 0.45,
+    "delta": 0.193,
+    "recommended": 0.643,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.semiauto.SafeDistance": {
+    "confidence": 0.329,
+    "current": 30.0,
+    "delta": 90.2,
+    "recommended": 120.2,
+    "source": "calibrated"
+   },
+   "Weapons.rifle.semiauto.SampleCount": {
+    "confidence": 0.329,
+    "current": 30,
+    "delta": 10.0,
+    "recommended": 40,
+    "source": "calibrated"
+   },
+   "Weapons.rocket_launcher.MaxAccuracy": {
+    "confidence": 0.814,
+    "current": "unset",
+    "delta": null,
+    "recommended": 1.0,
+    "source": "calibrated"
+   },
+   "Weapons.rocket_launcher.SafeDistance": {
+    "confidence": 0.814,
+    "current": "unset",
+    "delta": null,
+    "recommended": 8.0,
+    "source": "calibrated"
+   },
+   "Weapons.rocket_launcher.SampleCount": {
+    "confidence": 0.814,
+    "current": "unset",
+    "delta": null,
+    "recommended": 20,
+    "source": "calibrated"
+   },
+   "Weapons.rocket_launcher_dragon.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 1.0,
+    "source": "family_disabled"
+   },
+   "Weapons.rocket_launcher_dragon.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 25.0,
+    "source": "family_disabled"
+   },
+   "Weapons.rocket_launcher_dragon.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 20,
+    "source": "family_disabled"
+   },
+   "Weapons.rpg7.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 1.0,
+    "source": "family_disabled"
+   },
+   "Weapons.rpg7.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 25.0,
+    "source": "family_disabled"
+   },
+   "Weapons.rpg7.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 20,
+    "source": "family_disabled"
+   },
+   "Weapons.sks.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 0.643,
+    "source": "family_fallback:semi_rifle"
+   },
+   "Weapons.sks.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 120.2,
+    "source": "family_fallback:semi_rifle"
+   },
+   "Weapons.sks.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 40,
+    "source": "family_fallback:semi_rifle"
+   },
+   "Weapons.smg.2.MaxAccuracy": {
+    "confidence": 0.95,
+    "current": 0.35,
+    "delta": 0.558,
+    "recommended": 0.908,
+    "source": "calibrated"
+   },
+   "Weapons.smg.2.SafeDistance": {
+    "confidence": 0.95,
+    "current": 15.0,
+    "delta": -7.0,
+    "recommended": 8.0,
+    "source": "calibrated"
+   },
+   "Weapons.smg.mp5.MaxAccuracy": {
+    "confidence": 0.714,
+    "current": 0.35,
+    "delta": 0.65,
+    "recommended": 1.0,
+    "source": "calibrated"
+   },
+   "Weapons.smg.mp5.SafeDistance": {
+    "confidence": 0.714,
+    "current": 20.0,
+    "delta": -12.0,
+    "recommended": 8.0,
+    "source": "calibrated"
+   },
+   "Weapons.smg.mp5.SampleCount": {
+    "confidence": 0.714,
+    "current": 45,
+    "delta": -5.0,
+    "recommended": 40,
+    "source": "calibrated"
+   },
+   "Weapons.smg.thompson.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": 0.35,
+    "delta": 0.597,
+    "recommended": 0.947,
+    "source": "family_fallback:smg"
+   },
+   "Weapons.smg.thompson.SafeDistance": {
+    "confidence": 0.3,
+    "current": 18.0,
+    "delta": -10.0,
+    "recommended": 8.0,
+    "source": "family_fallback:smg"
+   },
+   "Weapons.t1_smg.MaxAccuracy": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 0.947,
+    "source": "family_fallback:smg"
+   },
+   "Weapons.t1_smg.SafeDistance": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 8.0,
+    "source": "family_fallback:smg"
+   },
+   "Weapons.t1_smg.SampleCount": {
+    "confidence": 0.3,
+    "current": "unset",
+    "delta": null,
+    "recommended": 40,
+    "source": "family_fallback:smg"
+   }
+  },
+  "trained_on_samples": 34745
+ },
+ "decision_percentile": 0.99,
+ "feature_direction": {
+  "accuracy": 1,
+  "aim_settle_ms": -1,
+  "aim_snap_speed": 1,
+  "cadence_cv": -1,
+  "dping_spike_rate": 1,
+  "head_streak": 1,
+  "headshot_ratio": 1,
+  "hit_streak": 1,
+  "longrange_share": 1,
+  "ping_cv": 1,
+  "weighted_score": 1
+ },
+ "features": [
+  "accuracy",
+  "weighted_score",
+  "longrange_share",
+  "headshot_ratio",
+  "head_streak",
+  "hit_streak",
+  "cadence_cv",
+  "dping_spike_rate",
+  "ping_cv",
+  "aim_snap_speed",
+  "aim_settle_ms"
+ ],
+ "label_source": "unsupervised",
+ "max_hit_distance": 500.0,
+ "max_suggested_nerf_pct": 50,
+ "miss_expiry_seconds": 20.0,
+ "model_format_version": "1.0.0",
+ "refit": null,
+ "score_tables": {
+  "__global__": [
+   -5.9067,
+   -4.0894,
+   -3.6363,
+   -3.3194,
+   -3.0707,
+   -2.8587,
+   -2.6742,
+   -2.5166,
+   -2.3688,
+   -2.2095,
+   -2.0799,
+   -1.9494,
+   -1.8309,
+   -1.7037,
+   -1.5901,
+   -1.4802,
+   -1.3853,
+   -1.2813,
+   -1.1875,
+   -1.1,
+   -1.0077,
+   -0.9233,
+   -0.8426,
+   -0.7549,
+   -0.679,
+   -0.6019,
+   -0.5332,
+   -0.4635,
+   -0.3976,
+   -0.3349,
+   -0.2683,
+   -0.2023,
+   -0.1369,
+   -0.0656,
+   0.0007,
+   0.0699,
+   0.1367,
+   0.2034,
+   0.2715,
+   0.3406,
+   0.4086,
+   0.4807,
+   0.5516,
+   0.6213,
+   0.6889,
+   0.7553,
+   0.8278,
+   0.9036,
+   0.9756,
+   1.048,
+   1.114,
+   1.1868,
+   1.259,
+   1.3411,
+   1.4203,
+   1.4967,
+   1.5726,
+   1.65,
+   1.7303,
+   1.8202,
+   1.8986,
+   1.981,
+   2.0688,
+   2.1595,
+   2.2562,
+   2.3538,
+   2.4499,
+   2.5405,
+   2.6464,
+   2.7505,
+   2.8564,
+   2.9718,
+   3.0896,
+   3.2181,
+   3.3343,
+   3.4672,
+   3.5998,
+   3.7564,
+   3.9045,
+   4.0666,
+   4.2439,
+   4.4195,
+   4.6329,
+   4.8597,
+   5.0988,
+   5.3642,
+   5.5952,
+   5.9101,
+   6.2734,
+   6.6155,
+   7.0768,
+   7.5675,
+   8.016,
+   8.3894,
+   9.0246,
+   9.6985,
+   10.5559,
+   11.6223,
+   13.0472,
+   15.608,
+   33.4758
+  ],
+  "ak47u": [
+   -5.8786,
+   -4.2963,
+   -3.8803,
+   -3.5217,
+   -3.2629,
+   -3.0656,
+   -2.8615,
+   -2.6736,
+   -2.5036,
+   -2.35,
+   -2.1831,
+   -2.0401,
+   -1.905,
+   -1.7557,
+   -1.6455,
+   -1.5233,
+   -1.4372,
+   -1.3132,
+   -1.2305,
+   -1.1413,
+   -1.0261,
+   -0.9502,
+   -0.8544,
+   -0.7726,
+   -0.6911,
+   -0.5996,
+   -0.5201,
+   -0.431,
+   -0.3473,
+   -0.2643,
+   -0.1897,
+   -0.1197,
+   -0.0451,
+   0.0442,
+   0.1321,
+   0.2123,
+   0.2884,
+   0.3575,
+   0.4355,
+   0.4973,
+   0.5755,
+   0.6591,
+   0.7361,
+   0.8117,
+   0.8905,
+   0.9706,
+   1.0571,
+   1.1227,
+   1.2169,
+   1.2787,
+   1.3616,
+   1.457,
+   1.537,
+   1.6164,
+   1.6957,
+   1.7758,
+   1.8655,
+   1.9746,
+   2.0685,
+   2.1624,
+   2.2586,
+   2.3543,
+   2.4565,
+   2.5644,
+   2.6746,
+   2.8035,
+   2.9129,
+   3.0503,
+   3.1804,
+   3.2889,
+   3.4296,
+   3.548,
+   3.7341,
+   3.8925,
+   4.0896,
+   4.2918,
+   4.5265,
+   4.7611,
+   5.0667,
+   5.3468,
+   5.6588,
+   5.9572,
+   6.3196,
+   6.5964,
+   6.9773,
+   7.3423,
+   7.7686,
+   8.0839,
+   8.2007,
+   8.57,
+   8.9476,
+   9.3154,
+   9.7759,
+   10.4177,
+   10.853,
+   11.7219,
+   12.2198,
+   13.6137,
+   15.384,
+   18.1649,
+   28.7753
+  ],
+  "ak47u_ice": [
+   -4.1072,
+   -2.8062,
+   -2.6676,
+   -2.5124,
+   -2.3062,
+   -2.2344,
+   -2.1402,
+   -2.0516,
+   -1.9671,
+   -1.9315,
+   -1.7728,
+   -1.6431,
+   -1.5273,
+   -1.4637,
+   -1.4038,
+   -1.3158,
+   -1.2385,
+   -1.0605,
+   -0.9472,
+   -0.9153,
+   -0.8524,
+   -0.8038,
+   -0.6386,
+   -0.5946,
+   -0.5055,
+   -0.359,
+   -0.3202,
+   -0.2541,
+   -0.1883,
+   -0.0806,
+   0.0375,
+   0.1109,
+   0.169,
+   0.3454,
+   0.3824,
+   0.4802,
+   0.5435,
+   0.6498,
+   0.8366,
+   0.9113,
+   1.0502,
+   1.1616,
+   1.2967,
+   1.4877,
+   1.5643,
+   1.7569,
+   1.9289,
+   1.9351,
+   1.9685,
+   1.9962,
+   2.2476,
+   2.3192,
+   2.3994,
+   2.4848,
+   2.6152,
+   2.704,
+   2.7457,
+   2.8229,
+   2.9852,
+   3.0647,
+   3.1771,
+   3.2598,
+   3.2997,
+   3.5365,
+   3.5759,
+   3.5869,
+   3.654,
+   3.7139,
+   3.8137,
+   4.0007,
+   4.0807,
+   4.151,
+   4.2172,
+   4.3462,
+   4.5002,
+   4.543,
+   4.8089,
+   5.0024,
+   5.2936,
+   5.6095,
+   5.8855,
+   5.9483,
+   6.0698,
+   6.2401,
+   6.3147,
+   6.4973,
+   6.6692,
+   6.8567,
+   7.1109,
+   7.2614,
+   7.5733,
+   7.7626,
+   7.9723,
+   8.2022,
+   8.2662,
+   8.6914,
+   9.1475,
+   10.452,
+   17.2033,
+   19.6678,
+   20.8523
+  ],
+  "bolt_rifle": [
+   -4.4087,
+   -4.1182,
+   -3.8848,
+   -3.698,
+   -3.49,
+   -3.369,
+   -3.1293,
+   -2.9483,
+   -2.782,
+   -2.569,
+   -2.3721,
+   -2.234,
+   -2.1527,
+   -1.9453,
+   -1.8393,
+   -1.7718,
+   -1.7423,
+   -1.6502,
+   -1.4391,
+   -1.3893,
+   -1.2662,
+   -1.2036,
+   -1.1625,
+   -1.0381,
+   -0.9992,
+   -0.8822,
+   -0.8141,
+   -0.7538,
+   -0.6187,
+   -0.5345,
+   -0.4292,
+   -0.38,
+   -0.2235,
+   -0.1161,
+   -0.0052,
+   0.1577,
+   0.2248,
+   0.3426,
+   0.47,
+   0.5451,
+   0.6089,
+   0.6611,
+   0.7301,
+   0.9575,
+   1.0659,
+   1.1463,
+   1.244,
+   1.3796,
+   1.4395,
+   1.4968,
+   1.5571,
+   1.642,
+   1.7643,
+   1.8253,
+   1.8947,
+   1.9647,
+   2.0891,
+   2.1955,
+   2.3002,
+   2.3652,
+   2.4803,
+   2.5483,
+   2.7048,
+   2.8969,
+   3.0839,
+   3.1937,
+   3.2662,
+   3.4168,
+   3.5007,
+   3.6849,
+   3.8207,
+   3.978,
+   4.1239,
+   4.2033,
+   4.2655,
+   4.3841,
+   4.5471,
+   4.6997,
+   4.7693,
+   5.043,
+   5.1596,
+   5.3694,
+   5.5811,
+   5.6647,
+   5.8913,
+   6.0592,
+   6.1613,
+   6.3131,
+   6.5673,
+   7.001,
+   7.4351,
+   7.9889,
+   8.5929,
+   9.0424,
+   9.5512,
+   10.5346,
+   11.1807,
+   12.1959,
+   12.9679,
+   13.7746,
+   16.6692
+  ],
+  "hmlmg": [
+   -3.6896,
+   -2.6431,
+   -2.343,
+   -2.2641,
+   -2.0033,
+   -1.7708,
+   -1.7254,
+   -1.6404,
+   -1.5318,
+   -1.4784,
+   -1.2774,
+   -1.1785,
+   -1.1212,
+   -1.0924,
+   -0.9976,
+   -0.9016,
+   -0.7502,
+   -0.6458,
+   -0.5751,
+   -0.4993,
+   -0.2809,
+   -0.1124,
+   -0.0399,
+   0.078,
+   0.1695,
+   0.2621,
+   0.3064,
+   0.4537,
+   0.5229,
+   0.5979,
+   0.6712,
+   0.7868,
+   0.8949,
+   1.0295,
+   1.1093,
+   1.1682,
+   1.2061,
+   1.283,
+   1.4322,
+   1.569,
+   1.6551,
+   1.7408,
+   1.9175,
+   1.9989,
+   2.1437,
+   2.1965,
+   2.3248,
+   2.4721,
+   2.6822,
+   2.7574,
+   2.8368,
+   3.0226,
+   3.1943,
+   3.292,
+   3.3987,
+   3.5549,
+   3.7574,
+   3.8138,
+   3.8416,
+   3.9253,
+   4.0786,
+   4.2356,
+   4.2976,
+   4.3547,
+   4.4975,
+   4.5994,
+   4.8972,
+   4.9353,
+   5.0661,
+   5.2334,
+   5.4112,
+   5.4749,
+   5.5718,
+   5.7326,
+   5.8831,
+   6.0187,
+   6.0488,
+   6.1074,
+   6.244,
+   6.412,
+   6.5071,
+   6.6783,
+   6.9159,
+   7.1321,
+   7.1963,
+   7.2477,
+   7.4428,
+   7.6212,
+   7.6687,
+   7.7613,
+   7.8902,
+   8.2412,
+   8.4186,
+   8.7314,
+   9.0876,
+   9.3965,
+   10.1571,
+   10.9566,
+   12.2797,
+   13.6416,
+   22.961
+  ],
+  "l96": [
+   -4.2843,
+   -3.6975,
+   -3.517,
+   -3.2535,
+   -3.078,
+   -2.9859,
+   -2.8962,
+   -2.7139,
+   -2.5464,
+   -2.4852,
+   -2.3609,
+   -2.1284,
+   -1.9173,
+   -1.82,
+   -1.6925,
+   -1.5805,
+   -1.4427,
+   -1.3092,
+   -1.141,
+   -0.9367,
+   -0.8592,
+   -0.7483,
+   -0.66,
+   -0.5677,
+   -0.4355,
+   -0.3184,
+   -0.2324,
+   -0.1377,
+   -0.0274,
+   0.0614,
+   0.1479,
+   0.238,
+   0.3345,
+   0.4184,
+   0.5692,
+   0.7008,
+   0.8492,
+   0.9364,
+   1.0147,
+   1.0814,
+   1.1755,
+   1.3038,
+   1.4028,
+   1.4833,
+   1.562,
+   1.7267,
+   1.8343,
+   1.8958,
+   2.0225,
+   2.1524,
+   2.1993,
+   2.2635,
+   2.4185,
+   2.5188,
+   2.6169,
+   2.7191,
+   2.8471,
+   2.9734,
+   3.1069,
+   3.2141,
+   3.3033,
+   3.4529,
+   3.5724,
+   3.6899,
+   3.8347,
+   3.9597,
+   4.0534,
+   4.231,
+   4.2838,
+   4.4845,
+   4.5665,
+   4.7304,
+   4.8608,
+   5.0412,
+   5.2015,
+   5.4118,
+   5.6023,
+   5.7955,
+   5.9791,
+   6.2303,
+   6.4544,
+   6.8006,
+   6.9844,
+   7.2339,
+   7.3997,
+   7.5905,
+   7.8936,
+   8.0499,
+   8.2893,
+   8.5652,
+   9.0454,
+   9.2815,
+   9.5427,
+   10.0942,
+   10.5202,
+   11.178,
+   11.6121,
+   12.2718,
+   13.4193,
+   14.6943,
+   18.6569
+  ],
+  "lr300": [
+   -4.887,
+   -3.5842,
+   -3.1984,
+   -2.9184,
+   -2.8054,
+   -2.6199,
+   -2.4707,
+   -2.3256,
+   -2.1483,
+   -2.0147,
+   -1.8722,
+   -1.714,
+   -1.6007,
+   -1.4611,
+   -1.3468,
+   -1.2089,
+   -1.1176,
+   -1.0115,
+   -0.9279,
+   -0.8358,
+   -0.7405,
+   -0.6401,
+   -0.541,
+   -0.4809,
+   -0.3806,
+   -0.2848,
+   -0.2122,
+   -0.1357,
+   -0.0689,
+   -0.0087,
+   0.0564,
+   0.1307,
+   0.2071,
+   0.2992,
+   0.4015,
+   0.486,
+   0.5504,
+   0.5846,
+   0.6368,
+   0.704,
+   0.7791,
+   0.8554,
+   0.9281,
+   1.0238,
+   1.0972,
+   1.1403,
+   1.203,
+   1.3241,
+   1.3925,
+   1.4857,
+   1.5452,
+   1.6309,
+   1.7161,
+   1.8047,
+   1.8955,
+   1.9559,
+   2.0302,
+   2.1118,
+   2.1841,
+   2.3012,
+   2.3981,
+   2.4758,
+   2.54,
+   2.6036,
+   2.7152,
+   2.7989,
+   2.87,
+   3.0206,
+   3.1398,
+   3.259,
+   3.3413,
+   3.4835,
+   3.57,
+   3.6976,
+   3.8001,
+   3.9021,
+   4.0434,
+   4.1243,
+   4.2602,
+   4.3686,
+   4.526,
+   4.6979,
+   4.8554,
+   4.9753,
+   5.1165,
+   5.3173,
+   5.4529,
+   5.6827,
+   5.9514,
+   6.1854,
+   6.4595,
+   6.7576,
+   7.121,
+   7.7661,
+   8.2106,
+   9.033,
+   9.8056,
+   10.9385,
+   12.3041,
+   13.254,
+   18.6893
+  ],
+  "m16a2": [
+   -5.5802,
+   -4.8055,
+   -4.0432,
+   -3.7312,
+   -3.5089,
+   -3.358,
+   -3.249,
+   -3.1524,
+   -2.9987,
+   -2.9465,
+   -2.8117,
+   -2.6827,
+   -2.5907,
+   -2.5031,
+   -2.3745,
+   -2.2652,
+   -2.1512,
+   -1.9614,
+   -1.7972,
+   -1.6414,
+   -1.5787,
+   -1.4542,
+   -1.3619,
+   -1.1902,
+   -1.0461,
+   -0.9539,
+   -0.8582,
+   -0.7619,
+   -0.6303,
+   -0.5178,
+   -0.4338,
+   -0.3691,
+   -0.2875,
+   -0.2552,
+   -0.1746,
+   -0.0439,
+   0.1255,
+   0.164,
+   0.276,
+   0.3275,
+   0.3913,
+   0.5209,
+   0.6142,
+   0.716,
+   0.8144,
+   0.935,
+   1.0043,
+   1.0512,
+   1.0909,
+   1.1566,
+   1.2687,
+   1.377,
+   1.4642,
+   1.552,
+   1.661,
+   1.7091,
+   1.7866,
+   1.9582,
+   2.0298,
+   2.0987,
+   2.2383,
+   2.3338,
+   2.446,
+   2.5468,
+   2.6081,
+   2.7113,
+   2.7798,
+   2.8506,
+   2.985,
+   3.0396,
+   3.0711,
+   3.1923,
+   3.2706,
+   3.3897,
+   3.5415,
+   3.6476,
+   3.7871,
+   3.9041,
+   4.0992,
+   4.1896,
+   4.3389,
+   4.5285,
+   4.6735,
+   4.7873,
+   4.9049,
+   5.0611,
+   5.2442,
+   5.3754,
+   5.587,
+   5.7278,
+   5.9325,
+   6.2683,
+   6.4659,
+   6.9457,
+   7.127,
+   7.355,
+   7.733,
+   8.0757,
+   8.7049,
+   10.0998,
+   15.0235
+  ],
+  "m249": [
+   -4.671,
+   -3.1093,
+   -2.7083,
+   -2.4512,
+   -2.2453,
+   -2.0715,
+   -1.9145,
+   -1.7831,
+   -1.6452,
+   -1.4951,
+   -1.3833,
+   -1.2727,
+   -1.1686,
+   -1.0789,
+   -0.9793,
+   -0.8853,
+   -0.8003,
+   -0.717,
+   -0.658,
+   -0.5733,
+   -0.5042,
+   -0.4214,
+   -0.3536,
+   -0.2879,
+   -0.214,
+   -0.1369,
+   -0.0719,
+   -0.005,
+   0.0759,
+   0.1559,
+   0.2277,
+   0.3023,
+   0.3705,
+   0.435,
+   0.5126,
+   0.586,
+   0.6471,
+   0.6959,
+   0.7462,
+   0.821,
+   0.8858,
+   0.9434,
+   1.0077,
+   1.0629,
+   1.1226,
+   1.1867,
+   1.2426,
+   1.3008,
+   1.3658,
+   1.4166,
+   1.4724,
+   1.533,
+   1.5876,
+   1.655,
+   1.728,
+   1.7881,
+   1.8453,
+   1.9249,
+   1.9944,
+   2.0693,
+   2.1451,
+   2.2346,
+   2.3032,
+   2.3873,
+   2.4572,
+   2.5244,
+   2.5993,
+   2.6772,
+   2.7523,
+   2.8196,
+   2.9059,
+   2.9962,
+   3.0901,
+   3.1953,
+   3.2776,
+   3.3696,
+   3.4696,
+   3.5844,
+   3.6931,
+   3.8347,
+   3.9656,
+   4.0774,
+   4.2463,
+   4.3975,
+   4.5796,
+   4.7532,
+   4.9614,
+   5.1859,
+   5.455,
+   5.739,
+   6.1544,
+   6.5516,
+   7.0141,
+   7.6044,
+   8.1417,
+   8.9031,
+   9.9755,
+   10.6989,
+   11.6699,
+   14.1358,
+   20.6041
+  ],
+  "minigun": [
+   -2.7241,
+   -2.3532,
+   -2.056,
+   -1.9458,
+   -1.8472,
+   -1.7428,
+   -1.5942,
+   -1.4693,
+   -1.1239,
+   -1.0546,
+   -0.976,
+   -0.842,
+   -0.784,
+   -0.7391,
+   -0.707,
+   -0.6224,
+   -0.4932,
+   -0.4155,
+   -0.4017,
+   -0.3175,
+   -0.2674,
+   -0.1923,
+   -0.1767,
+   -0.1155,
+   -0.0729,
+   -0.07,
+   -0.016,
+   0.0455,
+   0.1192,
+   0.1509,
+   0.1733,
+   0.205,
+   0.2555,
+   0.2879,
+   0.29,
+   0.3579,
+   0.3794,
+   0.4044,
+   0.4249,
+   0.4468,
+   0.4902,
+   0.5379,
+   0.5943,
+   0.6551,
+   0.7192,
+   0.799,
+   0.8573,
+   0.9646,
+   0.9882,
+   1.0268,
+   1.0488,
+   1.0822,
+   1.0918,
+   1.1103,
+   1.1326,
+   1.1691,
+   1.1948,
+   1.2904,
+   1.474,
+   1.6123,
+   1.643,
+   1.775,
+   1.7989,
+   1.905,
+   2.0977,
+   2.22,
+   2.4374,
+   2.5103,
+   2.7329,
+   2.8054,
+   2.973,
+   3.2051,
+   3.2886,
+   3.4166,
+   3.7788,
+   4.2722,
+   4.3917,
+   4.8641,
+   5.0733,
+   5.2584,
+   5.5612,
+   5.9584,
+   6.1206,
+   6.216,
+   6.4628,
+   6.7454,
+   6.9134,
+   7.0581,
+   7.2911,
+   7.4223,
+   7.509,
+   7.8162,
+   8.0539,
+   8.112,
+   8.9541,
+   9.4562,
+   10.7314,
+   11.668,
+   12.469,
+   13.2289,
+   13.9448
+  ],
+  "mp5": [
+   -3.6741,
+   -2.9502,
+   -2.5993,
+   -2.4119,
+   -2.0438,
+   -1.785,
+   -1.6231,
+   -1.3802,
+   -1.2643,
+   -1.1059,
+   -1.0041,
+   -0.9154,
+   -0.6406,
+   -0.4501,
+   -0.3047,
+   -0.0858,
+   0.0472,
+   0.102,
+   0.2247,
+   0.3982,
+   0.4434,
+   0.5446,
+   0.626,
+   0.7326,
+   0.9242,
+   1.1979,
+   1.2778,
+   1.3948,
+   1.463,
+   1.5929,
+   1.6645,
+   1.7337,
+   1.9628,
+   2.0679,
+   2.282,
+   2.5372,
+   2.6712,
+   2.9731,
+   3.0567,
+   3.2703,
+   3.4122,
+   3.4884,
+   3.6561,
+   3.8046,
+   3.8876,
+   4.0986,
+   4.5154,
+   4.7203,
+   4.8494,
+   5.0783,
+   5.3623,
+   5.4933,
+   5.4933,
+   5.4933,
+   5.4933,
+   5.4933,
+   5.4933,
+   5.4943,
+   5.4943,
+   5.4943,
+   5.4943,
+   5.4948,
+   5.4948,
+   5.5235,
+   5.5761,
+   5.6047,
+   5.6047,
+   5.6853,
+   5.9122,
+   6.1439,
+   6.4032,
+   6.613,
+   7.0325,
+   7.1992,
+   7.4966,
+   7.8811,
+   7.8829,
+   7.8844,
+   7.9069,
+   7.9209,
+   7.923,
+   7.923,
+   7.9231,
+   7.9242,
+   7.9253,
+   7.9264,
+   7.9297,
+   8.0302,
+   8.0879,
+   8.1477,
+   8.2556,
+   8.3587,
+   8.4555,
+   8.6826,
+   10.0852,
+   10.4796,
+   11.7738,
+   12.9811,
+   14.1348,
+   20.47,
+   27.3521
+  ],
+  "rocket_launcher": [
+   -0.7408,
+   -0.6924,
+   -0.6648,
+   -0.6397,
+   -0.6079,
+   -0.575,
+   -0.5532,
+   -0.5348,
+   -0.5155,
+   -0.5002,
+   -0.4873,
+   -0.4778,
+   -0.4681,
+   -0.4543,
+   -0.4432,
+   -0.4314,
+   -0.4231,
+   -0.413,
+   -0.4012,
+   -0.386,
+   -0.3733,
+   -0.3607,
+   -0.349,
+   -0.3377,
+   -0.326,
+   -0.3002,
+   -0.2814,
+   -0.2664,
+   -0.2387,
+   -0.2125,
+   -0.1854,
+   -0.1715,
+   -0.1523,
+   -0.1298,
+   -0.1079,
+   -0.0859,
+   -0.0634,
+   -0.0408,
+   -0.018,
+   0.0088,
+   0.0341,
+   0.0522,
+   0.0692,
+   0.0778,
+   0.0994,
+   0.1204,
+   0.139,
+   0.1604,
+   0.1793,
+   0.1991,
+   0.2146,
+   0.2386,
+   0.2631,
+   0.2947,
+   0.3177,
+   0.3451,
+   0.3658,
+   0.4049,
+   0.4659,
+   0.526,
+   0.5708,
+   0.6088,
+   0.6514,
+   0.6878,
+   0.7149,
+   0.7407,
+   0.7711,
+   0.8147,
+   0.9085,
+   1.003,
+   1.0864,
+   1.0987,
+   1.1464,
+   1.2157,
+   1.2724,
+   1.3402,
+   1.4338,
+   1.5495,
+   1.6303,
+   1.7212,
+   1.81,
+   1.8819,
+   1.9043,
+   1.9207,
+   1.9273,
+   1.9718,
+   2.0436,
+   2.1138,
+   2.1836,
+   2.2995,
+   2.4406,
+   2.5799,
+   2.7217,
+   2.8654,
+   3.0051,
+   3.2939,
+   3.6911,
+   3.9751,
+   4.203,
+   4.3356,
+   4.7526
+  ],
+  "semi_auto_rifle": [
+   -4.1265,
+   -3.7414,
+   -2.995,
+   -2.8195,
+   -2.7014,
+   -2.594,
+   -2.4633,
+   -2.3811,
+   -2.1963,
+   -2.079,
+   -2.0151,
+   -1.8358,
+   -1.6757,
+   -1.5933,
+   -1.5653,
+   -1.5358,
+   -1.5001,
+   -1.4683,
+   -1.1588,
+   -0.9179,
+   -0.8792,
+   -0.8141,
+   -0.6747,
+   -0.5217,
+   -0.44,
+   -0.3564,
+   -0.241,
+   -0.2303,
+   -0.0292,
+   0.0224,
+   0.1034,
+   0.2365,
+   0.281,
+   0.314,
+   0.3762,
+   0.5143,
+   0.5509,
+   0.5921,
+   0.6844,
+   0.7362,
+   0.9191,
+   0.9733,
+   1.0002,
+   1.0317,
+   1.0473,
+   1.179,
+   1.2974,
+   1.4587,
+   1.5002,
+   1.5592,
+   1.5829,
+   1.6323,
+   1.6694,
+   1.8337,
+   2.0277,
+   2.1349,
+   2.1879,
+   2.235,
+   2.3256,
+   2.3671,
+   2.471,
+   2.6402,
+   2.6865,
+   2.7496,
+   2.7622,
+   2.9133,
+   2.9804,
+   3.0455,
+   3.1457,
+   3.2039,
+   3.314,
+   3.3516,
+   3.4251,
+   3.4745,
+   3.5303,
+   3.7066,
+   3.7571,
+   3.8831,
+   3.94,
+   3.9875,
+   4.0531,
+   4.1801,
+   4.3196,
+   4.3341,
+   4.4861,
+   4.7231,
+   4.8942,
+   5.1258,
+   5.2889,
+   5.4184,
+   5.5256,
+   5.7833,
+   6.3483,
+   6.5515,
+   8.0434,
+   8.7777,
+   9.859,
+   10.7008,
+   11.9292,
+   12.5615,
+   14.1385
+  ],
+  "smg": [
+   -5.9067,
+   -4.3898,
+   -3.9526,
+   -3.6429,
+   -3.4096,
+   -3.1934,
+   -3.0189,
+   -2.8571,
+   -2.7323,
+   -2.6221,
+   -2.482,
+   -2.3787,
+   -2.2547,
+   -2.1488,
+   -2.0477,
+   -1.9623,
+   -1.866,
+   -1.7741,
+   -1.6725,
+   -1.5869,
+   -1.5002,
+   -1.4299,
+   -1.3492,
+   -1.2705,
+   -1.201,
+   -1.1261,
+   -1.0588,
+   -0.9823,
+   -0.9219,
+   -0.8566,
+   -0.7782,
+   -0.7061,
+   -0.6453,
+   -0.5796,
+   -0.5133,
+   -0.4413,
+   -0.3788,
+   -0.3227,
+   -0.2585,
+   -0.1907,
+   -0.1299,
+   -0.0572,
+   -0.0042,
+   0.0589,
+   0.1199,
+   0.1823,
+   0.24,
+   0.314,
+   0.3748,
+   0.4349,
+   0.5035,
+   0.5828,
+   0.6399,
+   0.7134,
+   0.78,
+   0.841,
+   0.912,
+   0.9832,
+   1.0489,
+   1.1274,
+   1.199,
+   1.281,
+   1.3554,
+   1.4349,
+   1.519,
+   1.6052,
+   1.6875,
+   1.7713,
+   1.8623,
+   1.9485,
+   2.0331,
+   2.1399,
+   2.2406,
+   2.3419,
+   2.4362,
+   2.5474,
+   2.6704,
+   2.7981,
+   2.923,
+   3.0528,
+   3.1911,
+   3.3493,
+   3.503,
+   3.6814,
+   3.8484,
+   4.0365,
+   4.2424,
+   4.4443,
+   4.6907,
+   4.9854,
+   5.2763,
+   5.6132,
+   6.0545,
+   6.506,
+   7.1191,
+   7.8497,
+   8.9108,
+   10.228,
+   11.8232,
+   14.1143,
+   33.4758
+  ],
+  "spas12": [
+   -2.2322,
+   -2.1992,
+   -2.1662,
+   -2.1326,
+   -2.0989,
+   -2.0647,
+   -2.0304,
+   -1.9957,
+   -1.9607,
+   -1.9256,
+   -1.8295,
+   -1.712,
+   -1.5527,
+   -1.3887,
+   -1.2381,
+   -1.1012,
+   -1.0244,
+   -0.9599,
+   -0.9199,
+   -0.8885,
+   -0.8664,
+   -0.8469,
+   -0.829,
+   -0.7937,
+   -0.7536,
+   -0.7133,
+   -0.6737,
+   -0.6431,
+   -0.6171,
+   -0.6074,
+   -0.5862,
+   -0.5458,
+   -0.5052,
+   -0.4647,
+   -0.4241,
+   -0.3834,
+   -0.3427,
+   -0.302,
+   -0.2612,
+   -0.2229,
+   -0.2043,
+   -0.1848,
+   -0.1625,
+   -0.1326,
+   -0.0916,
+   -0.0507,
+   -0.0097,
+   0.0314,
+   0.0725,
+   0.1522,
+   0.2387,
+   0.3876,
+   0.5268,
+   0.6099,
+   0.7373,
+   0.9696,
+   1.124,
+   1.1811,
+   1.3083,
+   1.4837,
+   1.6477,
+   1.8077,
+   1.8901,
+   1.9687,
+   2.2016,
+   2.3933,
+   2.4036,
+   2.4847,
+   2.7075,
+   3.0258,
+   3.4469,
+   3.6303,
+   3.674,
+   3.7686,
+   3.8776,
+   3.9262,
+   3.9753,
+   4.0929,
+   4.194,
+   4.2378,
+   4.304,
+   4.4085,
+   4.51,
+   4.6087,
+   4.6707,
+   4.7144,
+   4.728,
+   4.7347,
+   4.7706,
+   4.8391,
+   5.1603,
+   5.4446,
+   5.6233,
+   5.731,
+   5.7354,
+   5.9575,
+   6.3539,
+   6.501,
+   6.5432,
+   11.517,
+   17.3485
+  ]
+ },
+ "trained_at": "2026-07-27T18:04:36Z",
+ "trained_on": {
+  "evaluations": 34745,
+  "events": 592448,
+  "files": 22,
+  "first_event_ms": 1781664568248,
+  "last_event_ms": 1783537535229,
+  "players": 571,
+  "weapons": 43
+ },
+ "weapon_fallback": {
+  "Enabled": true,
+  "Families": {
+   "auto_rifle": {
+    "MaxAccuracy": 0.85,
+    "SafeDistance": 45.0,
+    "SampleCount": 40
+   },
+   "explosive": {
+    "MaxAccuracy": 1.0,
+    "SafeDistance": 25.0,
+    "SampleCount": 20
+   },
+   "lmg": {
+    "MaxAccuracy": 0.85,
+    "SafeDistance": 30.0,
+    "SampleCount": 50
+   },
+   "pistol": {
+    "MaxAccuracy": 0.88,
+    "SafeDistance": 15.0,
+    "SampleCount": 20
+   },
+   "projectile": {
+    "MaxAccuracy": 0.9,
+    "SafeDistance": 25.0,
+    "SampleCount": 12
+   },
+   "semi_rifle": {
+    "MaxAccuracy": 0.75,
+    "SafeDistance": 40.0,
+    "SampleCount": 30
+   },
+   "shotgun": {
+    "MaxAccuracy": 0.95,
+    "SafeDistance": 12.0,
+    "SampleCount": 15
+   },
+   "smg": {
+    "MaxAccuracy": 0.95,
+    "SafeDistance": 15.0,
+    "SampleCount": 40
+   },
+   "sniper": {
+    "MaxAccuracy": 0.93,
+    "SafeDistance": 60.0,
+    "SampleCount": 15
+   }
+  }
+ },
+ "weapons_config": {
+  "ak47u": {
+   "MaxAccuracy": 0.95,
+   "SafeDistance": 30.5,
+   "SampleCount": 40
+  },
+  "ak47u_diver": {
+   "MaxAccuracy": 0.843,
+   "SafeDistance": 46.6,
+   "SampleCount": 40
+  },
+  "ak47u_ice": {
+   "MaxAccuracy": 0.821,
+   "SafeDistance": 10.2,
+   "SampleCount": 40
+  },
+  "ak47u_jungle": {
+   "MaxAccuracy": 0.843,
+   "SafeDistance": 46.6,
+   "SampleCount": 40
+  },
+  "ak47u_med": {
+   "MaxAccuracy": 0.843,
+   "SafeDistance": 46.6,
+   "SampleCount": 40
+  },
+  "bow.compound": {
+   "MaxAccuracy": 0.6,
+   "SafeDistance": 30.0,
+   "SampleCount": 10
+  },
+  "bow.hunting": {
+   "MaxAccuracy": 0.5,
+   "SafeDistance": 20.0,
+   "SampleCount": 15
+  },
+  "crossbow": {
+   "MaxAccuracy": 0.55,
+   "SafeDistance": 25.0,
+   "SampleCount": 10
+  },
+  "hmlmg": {
+   "MaxAccuracy": 0.878,
+   "SafeDistance": 10.5,
+   "SampleCount": 50
+  },
+  "homing_missile_launcher": {
+   "MaxAccuracy": 1.0,
+   "SafeDistance": 25.0,
+   "SampleCount": 20
+  },
+  "lr300_space": {
+   "MaxAccuracy": 0.843,
+   "SafeDistance": 46.6,
+   "SampleCount": 40
+  },
+  "m16a2": {
+   "MaxAccuracy": 0.6,
+   "SafeDistance": 62.1,
+   "SampleCount": 40
+  },
+  "mgl": {
+   "MaxAccuracy": 1.0,
+   "SafeDistance": 25.0,
+   "SampleCount": 20
+  },
+  "minigun": {
+   "MaxAccuracy": 0.854,
+   "SafeDistance": 13.5,
+   "SampleCount": 50
+  },
+  "pistol.m92": {
+   "MaxAccuracy": 0.42,
+   "SafeDistance": 15.0,
+   "SampleCount": 25
+  },
+  "pistol.python": {
+   "MaxAccuracy": 0.45,
+   "SafeDistance": 20.0,
+   "SampleCount": 15
+  },
+  "pistol.revolver": {
+   "MaxAccuracy": 0.38,
+   "SafeDistance": 12.0,
+   "SampleCount": 15
+  },
+  "pistol.semiauto": {
+   "MaxAccuracy": 0.4,
+   "SafeDistance": 15.0,
+   "SampleCount": 20
+  },
+  "rifle.ak": {
+   "MaxAccuracy": 0.38,
+   "SafeDistance": 25.0,
+   "SampleCount": 40
+  },
+  "rifle.bolt": {
+   "MaxAccuracy": 0.923,
+   "SafeDistance": 18.2,
+   "SampleCount": 12
+  },
+  "rifle.l96": {
+   "MaxAccuracy": 0.933,
+   "SafeDistance": 32.4,
+   "SampleCount": 16
+  },
+  "rifle.lr300": {
+   "MaxAccuracy": 0.95,
+   "SafeDistance": 65.3,
+   "SampleCount": 40
+  },
+  "rifle.m249": {
+   "MaxAccuracy": 0.82,
+   "SafeDistance": 46.5,
+   "SampleCount": 50
+  },
+  "rifle.m39": {
+   "MaxAccuracy": 0.643,
+   "SafeDistance": 120.2,
+   "SampleCount": 40
+  },
+  "rifle.semiauto": {
+   "MaxAccuracy": 0.643,
+   "SafeDistance": 120.2,
+   "SampleCount": 40
+  },
+  "rocket_launcher": {
+   "MaxAccuracy": 1.0,
+   "SafeDistance": 8.0,
+   "SampleCount": 20
+  },
+  "rocket_launcher_dragon": {
+   "MaxAccuracy": 1.0,
+   "SafeDistance": 25.0,
+   "SampleCount": 20
+  },
+  "rpg7": {
+   "MaxAccuracy": 1.0,
+   "SafeDistance": 25.0,
+   "SampleCount": 20
+  },
+  "shotgun.pump": {
+   "MaxAccuracy": 0.7,
+   "SafeDistance": 10.0,
+   "SampleCount": 15
+  },
+  "shotgun.spas12": {
+   "MaxAccuracy": 0.7,
+   "SafeDistance": 10.0,
+   "SampleCount": 20
+  },
+  "sks": {
+   "MaxAccuracy": 0.643,
+   "SafeDistance": 120.2,
+   "SampleCount": 40
+  },
+  "smg.2": {
+   "MaxAccuracy": 0.908,
+   "SafeDistance": 8.0,
+   "SampleCount": 40
+  },
+  "smg.mp5": {
+   "MaxAccuracy": 1.0,
+   "SafeDistance": 8.0,
+   "SampleCount": 40
+  },
+  "smg.thompson": {
+   "MaxAccuracy": 0.947,
+   "SafeDistance": 8.0,
+   "SampleCount": 40
+  },
+  "t1_smg": {
+   "MaxAccuracy": 0.947,
+   "SafeDistance": 8.0,
+   "SampleCount": 40
+  }
+ },
+ "weights": {
+  "accuracy": 1.6,
+  "aim_settle_ms": 1.0,
+  "aim_snap_speed": 1.5,
+  "cadence_cv": 0.7,
+  "dping_spike_rate": 0.5,
+  "head_streak": 1.3,
+  "headshot_ratio": 1.2,
+  "hit_streak": 0.6,
+  "longrange_share": 1.0,
+  "ping_cv": 0.3,
+  "weighted_score": 0.8
+ }
+}

@@ -3,9 +3,13 @@
 [English docs](README.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9.8-blue)
+![Version](https://img.shields.io/badge/version-1.10.0-blue)
 ![API](https://img.shields.io/badge/api-1.3.0-purple)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
+
+> **Projekt státusz:** Ez a projekt mostantól **publikus és közösségi karbantartású**. Az eredeti
+> szerző már nem fejleszti aktívan, de a hozzájárulás szívesen látott — forkold, nyiss issue-t vagy
+> küldj pull requestet. Lásd lentebb: [Hozzájárulás](#hozzájárulás).
 
 ## Projekt dokumentáció
 
@@ -14,6 +18,8 @@
 - Public API: `docs/PUBLIC_API.md`
 - Plugin fejlesztői útmutató (HU): `docs/PLUGIN_DEV_GUIDE.hu.md`
 - Config séma: `docs/CONFIG_SCHEMA.md`
+- Adatgyűjtési tájékoztató: `docs/DATA_COLLECTION.md`
+- DLL build útmutató: `docs/DLL_BUILD.md`
 - RFC sablon: `docs/RFCs/TEMPLATE.md`
 - Változásnapló: `CHANGELOG.md`
 
@@ -140,6 +146,7 @@ Lépések:
 - `/ac-weapon <fegyverShortName|active> <MaxAccuracy|SampleCount|SafeDistance> <érték>` - Fegyverértékek módosítása in-game (és mentése configba).
 - `/ac-debug-log [clear]` - Debug log fájl útvonala vagy törlése.
 - `/ac-why [weaponShortName|active]` - Megmutatja, miért (nem) aktiválódik nerf az adott fegyvernél.
+- `/ac-weekly-now` - A névtelen heti telemetria riport azonnali elküldése (teszteléshez; opt-in kell hozzá).
 - `/ac-help` - Elérhető admin parancsok listázása.
 
 Példák:
@@ -179,6 +186,38 @@ Nem. Ezt inkább egy kiegészítő mitigációs rétegként érdemes kezelni. Cs
 
 ### Hogyan látja az admin, miért kapott valaki nerfet?
 Használd az `/ac-check` és `/ac-why` parancsokat; határesetek vizsgálatához érdemes debug módot is bekapcsolni.
+
+## Névtelen heti riport (opt-in)
+
+A plugin küldhet egy **névtelen heti összesítőt** a detektálási küszöbök és a közös ML-konfiguráció
+javításához. Alapból **ki van kapcsolva**, a `WeeklyReport` config blokk vezérli. Semmi nem megy ki,
+amíg a `WeeklyReport.Accepted = true`-t be nem állítod.
+
+- A SteamID-k visszafejthetetlen per-szerver hash-re cserélődnek (HMAC-SHA256, lokális salt, ami
+  **sose kerül elküldésre**). **Nevet, IP-t, nyers SteamID-t soha nem küldünk.**
+- Csak aggregált harci/működési metrikák kerülnek bele.
+- A **hivatalos release DLL** az eredeti fejlesztő Discord webhookjára van előre beállítva (hogy a
+  közös configok fejlődhessenek). A **publikus forrásban és a `.cs` buildekben nincs alapértelmezett
+  webhook, és nem küld semmit**, amíg te be nem állítod a `WeeklyReport.DiscordWebhookUrl`-t.
+- A `WeeklyReport.DiscordWebhookUrl` bármire átállítható, vagy hagyd `Accepted = false`-on. Saját
+  DLL-t buildelsz? A `docs/DLL_BUILD.md` leírja, hogyan injektálódik a webhook buildeléskor (a repóban
+  sose tárolódik).
+- Részletek: `docs/DATA_COLLECTION.md`, konfiguráció: `docs/CONFIG_SCHEMA.md` → `WeeklyReport`.
+
+## Hozzájárulás
+
+Ez egy publikus, közösségi karbantartású projekt — bárki fejlesztését szívesen látjuk.
+
+- **Fork & PR:** forkold a repót, csináld meg a módosítást, nyiss pull requestet.
+- **Issue:** hibajelzés és ötlet GitHub issue-ban.
+- **Doksik szinkronban:** viselkedés-változásnál frissítsd együtt a `MogyAntiCheat.cs`-t, a
+  `README.md`-t és a `docs/SOURCE_OF_TRUTH.md`-t.
+- **Adatgyűjtés:** ha saját buildet adsz ki, nézd át a `docs/DATA_COLLECTION.md`-t, és állítsd be
+  vagy töröld az alapértelmezett telemetria-webhookot.
+- Licenc: **MIT** — azt csinálsz vele, amit akarsz, a jelzést hagyd meg.
+
+Az eredeti szerző időnként még frissítheti a közös detektálási configokat az aggregált heti adatból,
+de új funkciókat már nem fejleszt aktívan. A projekt a tiéd, vidd tovább.
 
 ## Licenc
 

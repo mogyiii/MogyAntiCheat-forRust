@@ -115,7 +115,10 @@ Runtime compatibility:
 - If target is a real player and `KDATracking.Enabled`: record attacker in `_damageContributors[victim]` for assist calculation.
 - Debounce repeated hit events within 0.05 seconds.
 - Resolve active weapon and hit distance.
-- Load per-weapon `SampleCount` and global `MissExpirySeconds`.
+- Sanitize hit distance: a distance above `MaxHitDistance` is treated as unknown (`0`) for
+  detection purposes. The hit still counts; only the distance is discarded. The raw measurement is
+  what goes into the telemetry event.
+- Resolve per-weapon settings (`GetWeaponTuning`) and load global `MissExpirySeconds`.
 - Register hit into rolling history (`RegisterHit`).
 - Evaluate suspicion for active weapon and emit transition event payload.
 - Compute attacker nerf (`GetLowestNerf`) and apply manual override floor (`_manualOverrides`) if present; scale outgoing damage if needed.
@@ -165,7 +168,8 @@ Runtime compatibility:
 
 For each weapon with enough data (`History.Count >= 10`):
 
-1. Read config: `MaxAccuracy`, `SafeDistance`.
+1. Resolve settings via `GetWeaponTuning` (see Weapon Settings Resolution). If nothing resolves,
+   or the resolved `MaxAccuracy` is `1.0`, no penalty.
 2. If `Accuracy <= MaxAccuracy`, no penalty.
 3. Else:
    - `Excess = (Accuracy - MaxAccuracy) / (1 - MaxAccuracy)`
@@ -243,7 +247,30 @@ Each weapon requires:
 - `SampleCount` (int)
 - `SafeDistance` (float)
 
-If a weapon has no entry, history limit falls back to `40` during hit registration.
+Also top-level:
+
+- `MaxHitDistance` (float, default `500`) — distance sanity bound; `0` disables it
+- `WeaponFallback` (object) — `Enabled` (bool, default `true`) plus `Families`, one entry per
+  weapon family with the same three fields
+
+### Weapon Settings Resolution
+
+`GetWeaponTuning(weaponName)` resolves in this order, and the result is cached per prefab name
+until the weapon config changes:
+
+1. **A `Weapons` entry**, matched by: exact key; case-insensitive key; built-in alias
+   (`smg` → `smg.2`, `semi_auto_rifle` → `rifle.semiauto`, `semi_auto_pistol` →
+   `pistol.semiauto`, `hunting_bow` → `bow.hunting`); the segment after the last dot
+   (`m39` → `rifle.m39`); separator- and order-insensitive token signature
+   (`bolt_rifle` → `rifle.bolt`, `shotgun_pump` → `shotgun.pump`).
+2. **`WeaponFallback.Families[<family>]`** when enabled. Family is inferred from name fragments:
+   `explosive`, `lmg`, `sniper`, `semi_rifle`, `auto_rifle`, `smg`, `shotgun`, `pistol`,
+   `projectile`, first match wins.
+3. **Unresolved** — `MaxAccuracy = 1.0`, `SampleCount = 40`, `SafeDistance = 1.0`. The weapon is
+   never flagged, and the plugin emits a one-time console warning naming it.
+
+A resolved `MaxAccuracy` of `1.0` (the `explosive` family) is not the same as unresolved: it is
+covered on purpose, and no warning is emitted. `/ac-why` reports which of the three applied.
 
 ## Admin Command Contract
 
@@ -328,6 +355,9 @@ When plugin behavior changes, update all of:
 Config under `WeeklyReport` (see `DATA_COLLECTION.md` and `CONFIG_SCHEMA.md`):
 
 - `Enabled`, `Accepted`, `DiscordWebhookUrl`, `IntervalDays`, `IncludeKDA`, `IncludeLagswitch`.
+- `DiscordWebhookUrl` default comes from `DefaultWeeklyReportWebhook` in `MogyAntiCheat.cs`, which is a
+  `__WEEKLY_WEBHOOK__` sentinel in the public source (resolves to empty → sends nothing). The official
+  release DLL injects the real webhook at build time (`build-release.ps1`). Overridable per server.
 
 Behavior:
 

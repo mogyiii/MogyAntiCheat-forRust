@@ -10,6 +10,12 @@ This guide covers building it **ahead of time into a `.dll`** — e.g. for IP/ta
 > (a .NET assembly is trivial to decompile). Ship the DLL for convenience/protection, **not** to
 > conceal the weekly report.
 
+> **Webhook is not in the source.** The public source keeps `DefaultWeeklyReportWebhook =
+> "__WEEKLY_WEBHOOK__"` (a sentinel), so `.cs`/source deployments have **no** default webhook and send
+> nothing. The real webhook is injected only into the **release DLL** at build time (see
+> [Injecting the release webhook](#injecting-the-release-webhook)). Forks should use their own webhook
+> (or none) and keep `docs/DATA_COLLECTION.md` accurate for their users.
+
 ## Reality check per framework
 
 | Framework | Precompiled DLL support | Effort |
@@ -98,10 +104,38 @@ Adjust `RustManaged` to your server's Managed folder.
 `<Private>false</Private>` (a.k.a. "Copy Local = false") keeps the referenced game/framework
 assemblies **out** of your output folder — you ship only `MogyAntiCheat.dll`.
 
+Point `<Compile Include>` at the **injected copy** (`build/MogyAntiCheat.cs`, see below) when building an
+official release, or at the tracked `MogyAntiCheat.cs` for a webhook-less build.
+
+## Injecting the release webhook
+
+The tracked source never contains the webhook — it holds the sentinel `__WEEKLY_WEBHOOK__`. To build an
+official release that reports to your webhook, inject it first with `build-release.ps1`:
+
+```powershell
+# Option A: pass it directly
+.\build-release.ps1 -Webhook "https://discord.com/api/webhooks/xxx/yyy"
+
+# Option B: environment variable
+$env:MOGYAC_WEEKLY_WEBHOOK = "https://discord.com/api/webhooks/xxx/yyy"
+.\build-release.ps1
+
+# Option C: a gitignored secret file
+Set-Content webhook.secret "https://discord.com/api/webhooks/xxx/yyy"
+.\build-release.ps1
+```
+
+This writes `build/MogyAntiCheat.cs` with the sentinel replaced. Compile **that** file into the DLL.
+`build/` and `webhook.secret` are gitignored — never commit them.
+
+> This only hides the webhook from **automated source scanners**. A `.dll` string constant is still
+> readable (`strings MogyAntiCheat.dll` / any decompiler), so treat this as spam mitigation, not
+> secrecy. The data-collection disclosure and opt-in flag remain required regardless.
+
 ## Build
 
 ```powershell
-# From the folder containing the .csproj
+# From the folder containing the .csproj (Compile pointed at build\MogyAntiCheat.cs for a release)
 dotnet build -c Release
 # Output: bin\Release\MogyAntiCheat.dll
 ```

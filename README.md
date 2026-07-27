@@ -3,9 +3,13 @@
 [Hungarian docs](README.hu.md) | [Source of truth](docs/SOURCE_OF_TRUTH.md)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.9.8-blue)
+![Version](https://img.shields.io/badge/version-1.10.0-blue)
 ![API](https://img.shields.io/badge/api-1.3.0-purple)
 ![Game](https://img.shields.io/badge/game-Rust-orange)
+
+> **Project status:** This project is **public and community-maintained**. The original author is no
+> longer actively developing it, but contributions are welcome — fork it, open issues, or send pull
+> requests. See [Contributing](#contributing) below.
 
 ## Project Documentation
 
@@ -16,6 +20,8 @@
 - Admin recipes (EN): `docs/ADMIN_RECIPES.en.md`
 - Plugin development guide (EN): `docs/PLUGIN_DEV_GUIDE.en.md`
 - Config schema: `docs/CONFIG_SCHEMA.md`
+- Data collection notice: `docs/DATA_COLLECTION.md`
+- Building as a DLL: `docs/DLL_BUILD.md`
 - RFC template: `docs/RFCs/TEMPLATE.md`
 - Change log: `CHANGELOG.md`
 
@@ -45,6 +51,8 @@ The plugin does not scan files or processes. It observes combat events and compu
 - Per-player ping baseline + anomaly detection for network manipulation.
 - Lagswitch detection: composite scoring from ping spikes, kill quality, and reconnect patterns.
 - ML service integration: optional external confidence scoring and auto-tuning recommendations.
+- Offline trainer that calibrates the config from your own event logs — see
+  [`docs/ML_TRAINING.md`](docs/ML_TRAINING.md).
 
 **Admin & Data:**
 - Live admin dashboard: player overview, nerf status, override tracking.
@@ -148,15 +156,36 @@ To customize text:
 
 ## Anonymous Weekly Report (opt-in)
 
-The plugin can send an **anonymized weekly summary** to the developer to help improve detection
-thresholds and the ML configuration. It is **off by default** and controlled by the `WeeklyReport`
-config block. Nothing is sent until you set `WeeklyReport.Accepted = true`.
+The plugin can send an **anonymized weekly summary** to help improve detection thresholds and the
+shared ML configuration. It is **off by default** and controlled by the `WeeklyReport` config block.
+Nothing is sent until you set `WeeklyReport.Accepted = true`.
 
 - SteamIDs are replaced with an irreversible per-server hash (HMAC-SHA256 with a local salt that is
   never transmitted). **No player names, IP addresses, or raw SteamIDs are ever sent.**
 - Only aggregated combat/operational metrics are included.
+- The **official release DLL** is preconfigured to deliver the report to the original developer's
+  Discord webhook (so shared configs can keep improving). The **public source and `.cs` builds have no
+  default webhook and send nothing** unless you set `WeeklyReport.DiscordWebhookUrl` yourself.
+- You can point `WeeklyReport.DiscordWebhookUrl` anywhere you like, or leave `Accepted = false` to
+  send nothing at all. Building your own DLL? See [`docs/DLL_BUILD.md`](docs/DLL_BUILD.md) for how the
+  webhook is injected at build time (it is never stored in the repo).
 - See [`docs/DATA_COLLECTION.md`](docs/DATA_COLLECTION.md) for the full notice and
   [`docs/CONFIG_SCHEMA.md`](docs/CONFIG_SCHEMA.md) → `WeeklyReport` for configuration.
+
+## Contributing
+
+This is a public, community-maintained project — improvements from anyone are welcome.
+
+- **Fork & PR:** fork the repo, make your change, and open a pull request.
+- **Issues:** bug reports and feature ideas are welcome via GitHub issues.
+- **Keep the docs in sync:** when changing behavior, update `MogyAntiCheat.cs`, `README.md`, and
+  `docs/SOURCE_OF_TRUTH.md` together (see the change-management note in the source of truth).
+- **Data collection:** if you fork and ship your own build, review `docs/DATA_COLLECTION.md` and set
+  or clear the default telemetry webhook accordingly.
+- Licensed under **MIT** — do what you want, keep the notice.
+
+The original author may occasionally update shared detection configs from the aggregated weekly data,
+but is not actively developing new features. The project is yours to carry forward.
 
 ## Building as a DLL (advanced)
 

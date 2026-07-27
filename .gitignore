@@ -1,0 +1,21 @@
+# Release webhook secret (never commit)
+webhook.secret
+
+# Build output
+build/
+bin/
+obj/
+
+# Local agent / tooling state
+.claude/
+
+# Raw telemetry logs used for ML training (large, and server-specific)
+logs/
+
+# ML service runtime state (ingested events, admin verdicts)
+ml-service/data/
+# Training reports name individual players in their review queue — server-specific, not for commit
+ml-service/reports/
+ml-service/ml-service.log
+__pycache__/
+*.pyc

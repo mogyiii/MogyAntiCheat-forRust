@@ -2,9 +2,12 @@
 
 Ez a dokumentum a MogyAntiCheat teljes tesztelési stratégiáját tartalmazza az összes funkció és szélsőséges eset validálásához.
 
-**Plugin verzió:** 1.9.8  
+**Plugin verzió:** 1.10.0  
 **API verzió:** 1.3.0  
 **Runtime:** Oxide/uMod, Carbon
+
+> Megjegyzés: az alábbi tesztesetek 1.9.8-hoz (M9 mérföldkő) készültek. Az 1.10.0 újdonságok
+> (SteamID hashelés, opt-in heti telemetria riport) **még nincsenek lefedve**, teszteset kell hozzájuk.
 
 ---
 

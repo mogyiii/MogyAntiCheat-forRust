@@ -2,9 +2,12 @@
 
 This document provides a comprehensive testing strategy for validating MogyAntiCheat functionality across all features and edge cases.
 
-**Plugin Version:** 1.9.8  
+**Plugin Version:** 1.10.0  
 **API Version:** 1.3.0  
 **Runtimes:** Oxide/uMod, Carbon
+
+> Note: the test cases below were authored for 1.9.8 (Milestone M9). The 1.10.0 additions
+> (SteamID hashing, opt-in weekly telemetry report) are **not yet covered** and need test cases.
 
 ---
 

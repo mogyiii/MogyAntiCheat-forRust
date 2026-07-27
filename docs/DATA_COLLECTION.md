@@ -1,8 +1,14 @@
 # MogyAntiCheat — Data Collection Notice
 
 This document describes the optional **weekly telemetry report** feature (added in `1.10.0`).
-It exists so the developer can improve detection thresholds and the ML configuration using
-real-world, **anonymized** data from consenting servers.
+It exists so detection thresholds and the shared ML configuration can improve using real-world,
+**anonymized** data from consenting servers.
+
+This is a **public, community-maintained** project. The **official release DLL** is preconfigured to
+deliver the report to the original developer's Discord webhook, so shared configs can keep improving
+even though the author is no longer actively developing new features. The **public source and `.cs`
+builds have no default webhook** (the source holds a placeholder sentinel) and send nothing unless a
+webhook is configured. You can point it elsewhere or turn it off entirely — see below.
 
 Reading and understanding this document is required before enabling the feature.
 
@@ -29,13 +35,30 @@ The weekly report is an **aggregated summary**, delivered to a Discord webhook. 
 The same anonymization applies to the per-batch telemetry sent to the (separate, self-hosted)
 ML service `/ingest` endpoint: the player identifier there is the **hash**, never the raw SteamID.
 
+### Aim tracking (`AimTracking`)
+
+Since the aim-kinematics feature, the plugin samples each player's **view direction** while they
+hold a ranged weapon, in order to tell an assisted snap from a human's aim. Nothing about where a
+player is looking is stored or transmitted. The samples exist only in memory, for at most 400 ms,
+and what is written to the event log per shot is three **scalars**:
+
+- `AimDeltaDeg` — the *angle between* this shot's view direction and the previous shot's
+- `SnapDeg` — the largest *angle between two consecutive samples* before the shot
+- `SnapSettleMs` — the delay between that step and the trigger
+
+An angle between two directions says how far the view turned; it cannot say which way the player
+was facing, where they were, or what they were looking at. No direction vector, orientation or
+coordinate is retained, logged or sent anywhere. Set `AimTracking.Enabled = false` to stop the
+sampling entirely — the three fields are then always `-1`.
+
 ## What is NOT collected
 
 - **No player names / display names.** They never leave the server; they only appear in the
   local server console and in-game admin commands.
 - **No IP addresses.** They are never collected or transmitted.
 - **No raw SteamIDs.** See anonymization below.
-- No chat messages, positions, inventories, or any non-combat data.
+- No chat messages, positions, inventories, or any non-combat data. Aim tracking records only
+  scalar angle *deltas*, never a view direction or orientation — see "Aim tracking" above.
 
 ## How player identity is anonymized
 
@@ -75,6 +98,14 @@ on next load.
 - `/ac-weekly-now` (admin only) — sends the report immediately, for testing delivery. Requires
   `Accepted = true` and a configured webhook URL.
 
+## Forks and custom builds
+
+If you fork or ship your own build, you are responsible for where the data goes. The source ships with
+a placeholder sentinel (`__WEEKLY_WEBHOOK__`) instead of a real URL; inject your own webhook at build
+time (see `docs/DLL_BUILD.md`) or leave it unset, and keep this notice accurate for your users. Do not
+silently redirect telemetry without disclosure.
+
 ## Contact
 
-Questions or data-removal requests: contact the plugin developer (Mogy).
+Questions, issues, or data-removal requests: open a GitHub issue on the project repository, or contact
+the original developer (Mogy). As a community project, maintenance may come from contributors as well.

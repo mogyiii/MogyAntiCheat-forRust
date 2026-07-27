@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **MogyAntiCheat** is a statistical anti-cheat plugin for Rust game servers running Oxide/uMod or Carbon. It is a single C# file (`MogyAntiCheat.cs`) compiled at runtime by the modding framework — there is no local build step, no test suite, and no package manager.
 
+This is now a **public, community-maintained** project (MIT). The original author is no longer actively developing new features; contributions via fork/PR are welcome. An optional opt-in weekly telemetry report exists; the webhook is not stored in source (`DefaultWeeklyReportWebhook` is a `__WEEKLY_WEBHOOK__` sentinel) and is injected only into the official release DLL via `build-release.ps1` — see `docs/DATA_COLLECTION.md` and `docs/DLL_BUILD.md`.
+
 ## Deployment
 
 - Copy `MogyAntiCheat.cs` to `oxide/plugins/` (Oxide/uMod) or `carbon/plugins/` (Carbon)
@@ -53,6 +55,12 @@ OnEntityTakeDamage → RegisterHit → EvaluateWeapon
 - `docs/SOURCE_OF_TRUTH.md` — authoritative behavioral specification; consult before changing algorithm logic
 - `docs/PUBLIC_API.md` — API contract and versioning policy (additive = minor bump, breaking = major bump)
 - `docs/CONFIG_SCHEMA.md` — all configuration fields and defaults
+- `docs/DATA_COLLECTION.md` — opt-in weekly telemetry notice (hashing, consent flag, default webhook)
+- `docs/ML_TRAINING.md` — offline trainer that calibrates config thresholds from event logs; also
+  records measured problems in the current detection metric. `ml-service/mogyac/replay.py` is a
+  hand-maintained replica of the plugin's `WeaponData` logic — if you change how accuracy, the
+  weighted score, or the penalty is computed, update it and rerun `ml-service/selftest.py`.
+- `docs/DLL_BUILD.md` — building/distributing as a precompiled DLL
 - `docs/examples/MogyAcExampleSubscriber.cs` — reference implementation for external plugins using the API
 - `plugins/MogyAcZeroDamageAlert.cs` — companion plugin (ships separately)
 - `docs/ROADMAP.md` — milestone planning

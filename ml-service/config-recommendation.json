@@ -1,0 +1,1600 @@
+{
+  "MaxHitDistance": 500.0,
+  "MissExpirySeconds": 20.0,
+  "Weapons": {
+    "ak47u": {
+      "MaxAccuracy": 0.95,
+      "SafeDistance": 30.5,
+      "SampleCount": 40
+    },
+    "ak47u_diver": {
+      "MaxAccuracy": 0.843,
+      "SafeDistance": 46.6,
+      "SampleCount": 40
+    },
+    "ak47u_ice": {
+      "MaxAccuracy": 0.821,
+      "SafeDistance": 10.2,
+      "SampleCount": 40
+    },
+    "ak47u_jungle": {
+      "MaxAccuracy": 0.843,
+      "SafeDistance": 46.6,
+      "SampleCount": 40
+    },
+    "ak47u_med": {
+      "MaxAccuracy": 0.843,
+      "SafeDistance": 46.6,
+      "SampleCount": 40
+    },
+    "bow.compound": {
+      "MaxAccuracy": 0.6,
+      "SafeDistance": 30.0,
+      "SampleCount": 10
+    },
+    "bow.hunting": {
+      "MaxAccuracy": 0.5,
+      "SafeDistance": 20.0,
+      "SampleCount": 15
+    },
+    "crossbow": {
+      "MaxAccuracy": 0.55,
+      "SafeDistance": 25.0,
+      "SampleCount": 10
+    },
+    "hmlmg": {
+      "MaxAccuracy": 0.878,
+      "SafeDistance": 10.5,
+      "SampleCount": 50
+    },
+    "homing_missile_launcher": {
+      "MaxAccuracy": 1.0,
+      "SafeDistance": 25.0,
+      "SampleCount": 20
+    },
+    "lr300_space": {
+      "MaxAccuracy": 0.843,
+      "SafeDistance": 46.6,
+      "SampleCount": 40
+    },
+    "m16a2": {
+      "MaxAccuracy": 0.6,
+      "SafeDistance": 62.1,
+      "SampleCount": 40
+    },
+    "mgl": {
+      "MaxAccuracy": 1.0,
+      "SafeDistance": 25.0,
+      "SampleCount": 20
+    },
+    "minigun": {
+      "MaxAccuracy": 0.854,
+      "SafeDistance": 13.5,
+      "SampleCount": 50
+    },
+    "pistol.m92": {
+      "MaxAccuracy": 0.42,
+      "SafeDistance": 15.0,
+      "SampleCount": 25
+    },
+    "pistol.python": {
+      "MaxAccuracy": 0.45,
+      "SafeDistance": 20.0,
+      "SampleCount": 15
+    },
+    "pistol.revolver": {
+      "MaxAccuracy": 0.38,
+      "SafeDistance": 12.0,
+      "SampleCount": 15
+    },
+    "pistol.semiauto": {
+      "MaxAccuracy": 0.4,
+      "SafeDistance": 15.0,
+      "SampleCount": 20
+    },
+    "rifle.ak": {
+      "MaxAccuracy": 0.38,
+      "SafeDistance": 25.0,
+      "SampleCount": 40
+    },
+    "rifle.bolt": {
+      "MaxAccuracy": 0.923,
+      "SafeDistance": 18.2,
+      "SampleCount": 12
+    },
+    "rifle.l96": {
+      "MaxAccuracy": 0.933,
+      "SafeDistance": 32.4,
+      "SampleCount": 16
+    },
+    "rifle.lr300": {
+      "MaxAccuracy": 0.95,
+      "SafeDistance": 65.3,
+      "SampleCount": 40
+    },
+    "rifle.m249": {
+      "MaxAccuracy": 0.82,
+      "SafeDistance": 46.5,
+      "SampleCount": 50
+    },
+    "rifle.m39": {
+      "MaxAccuracy": 0.643,
+      "SafeDistance": 120.2,
+      "SampleCount": 40
+    },
+    "rifle.semiauto": {
+      "MaxAccuracy": 0.643,
+      "SafeDistance": 120.2,
+      "SampleCount": 40
+    },
+    "rocket_launcher": {
+      "MaxAccuracy": 1.0,
+      "SafeDistance": 8.0,
+      "SampleCount": 20
+    },
+    "rocket_launcher_dragon": {
+      "MaxAccuracy": 1.0,
+      "SafeDistance": 25.0,
+      "SampleCount": 20
+    },
+    "rpg7": {
+      "MaxAccuracy": 1.0,
+      "SafeDistance": 25.0,
+      "SampleCount": 20
+    },
+    "shotgun.pump": {
+      "MaxAccuracy": 0.7,
+      "SafeDistance": 10.0,
+      "SampleCount": 15
+    },
+    "shotgun.spas12": {
+      "MaxAccuracy": 0.7,
+      "SafeDistance": 10.0,
+      "SampleCount": 20
+    },
+    "sks": {
+      "MaxAccuracy": 0.643,
+      "SafeDistance": 120.2,
+      "SampleCount": 40
+    },
+    "smg.2": {
+      "MaxAccuracy": 0.908,
+      "SafeDistance": 8.0,
+      "SampleCount": 40
+    },
+    "smg.mp5": {
+      "MaxAccuracy": 1.0,
+      "SafeDistance": 8.0,
+      "SampleCount": 40
+    },
+    "smg.thompson": {
+      "MaxAccuracy": 0.947,
+      "SafeDistance": 8.0,
+      "SampleCount": 40
+    },
+    "t1_smg": {
+      "MaxAccuracy": 0.947,
+      "SafeDistance": 8.0,
+      "SampleCount": 40
+    }
+  },
+  "baseline_config": "plugin defaults (MogyAntiCheat.cs)",
+  "expiry_sweep": [
+    {
+      "discrimination": 0.5060909320972461,
+      "expiry_seconds": 20.0,
+      "flag_rate": 0.3907,
+      "median_accuracy": 0.325,
+      "penalisable_evaluations": 34745,
+      "saturation_share": 0.05123039286228234,
+      "zero_damage_rate": 0.0466
+    },
+    {
+      "discrimination": 0.4991414324703691,
+      "expiry_seconds": 30.0,
+      "flag_rate": 0.3575,
+      "median_accuracy": 0.3,
+      "penalisable_evaluations": 34832,
+      "saturation_share": 0.050585668350941665,
+      "zero_damage_rate": 0.0447
+    },
+    {
+      "discrimination": 0.4946514475843725,
+      "expiry_seconds": 45.0,
+      "flag_rate": 0.331,
+      "median_accuracy": 0.29411764705882354,
+      "penalisable_evaluations": 34925,
+      "saturation_share": 0.04973514674302076,
+      "zero_damage_rate": 0.042
+    },
+    {
+      "discrimination": 0.48902800697349635,
+      "expiry_seconds": 60.0,
+      "flag_rate": 0.3111,
+      "median_accuracy": 0.275,
+      "penalisable_evaluations": 34988,
+      "saturation_share": 0.0495884303189665,
+      "zero_damage_rate": 0.0409
+    },
+    {
+      "discrimination": 0.48138506595195196,
+      "expiry_seconds": 90.0,
+      "flag_rate": 0.2908,
+      "median_accuracy": 0.275,
+      "penalisable_evaluations": 35071,
+      "saturation_share": 0.04898634199195917,
+      "zero_damage_rate": 0.0393
+    },
+    {
+      "discrimination": 0.4706781276113032,
+      "expiry_seconds": 120.0,
+      "flag_rate": 0.2776,
+      "median_accuracy": 0.26666666666666666,
+      "penalisable_evaluations": 35133,
+      "saturation_share": 0.04861526200438334,
+      "zero_damage_rate": 0.0384
+    }
+  ],
+  "family_fallbacks": {
+    "auto_rifle": {
+      "MaxAccuracy": 0.843,
+      "SafeDistance": 46.6,
+      "SampleCount": 40,
+      "derived_from": [
+        "ak47u",
+        "ak47u_ice",
+        "lr300",
+        "m16a2"
+      ]
+    },
+    "lmg": {
+      "MaxAccuracy": 0.843,
+      "SafeDistance": 30.7,
+      "SampleCount": 50,
+      "derived_from": [
+        "hmlmg",
+        "m249",
+        "minigun"
+      ]
+    },
+    "semi_rifle": {
+      "MaxAccuracy": 0.643,
+      "SafeDistance": 120.2,
+      "SampleCount": 40,
+      "derived_from": [
+        "semi_auto_rifle"
+      ]
+    },
+    "smg": {
+      "MaxAccuracy": 0.947,
+      "SafeDistance": 8.0,
+      "SampleCount": 40,
+      "derived_from": [
+        "mp5",
+        "smg"
+      ]
+    },
+    "sniper": {
+      "MaxAccuracy": 0.928,
+      "SafeDistance": 25.0,
+      "SampleCount": 14,
+      "derived_from": [
+        "bolt_rifle",
+        "l96"
+      ]
+    }
+  },
+  "params": {
+    "flag_rate": 0.02,
+    "max_saturation_share": 0.25,
+    "max_weighted_amplification": 3.0,
+    "min_evals": 60,
+    "min_margin": 0.12,
+    "min_player_evals": 8,
+    "min_players": 5,
+    "safe_distance_pct": 90.0
+  },
+  "provenance": {
+    "ak47u": {
+      "source": "calibrated",
+      "weapon": "ak47u"
+    },
+    "ak47u_diver": {
+      "source": "family_fallback:auto_rifle",
+      "weapon": "ak47u_diver"
+    },
+    "ak47u_ice": {
+      "source": "calibrated",
+      "weapon": "ak47u_ice"
+    },
+    "ak47u_jungle": {
+      "source": "family_fallback:auto_rifle",
+      "weapon": "ak47u_jungle"
+    },
+    "ak47u_med": {
+      "source": "family_fallback:auto_rifle",
+      "weapon": "ak47u_med"
+    },
+    "hmlmg": {
+      "source": "calibrated",
+      "weapon": "hmlmg"
+    },
+    "homing_missile_launcher": {
+      "source": "family_disabled",
+      "weapon": "homing_missile_launcher"
+    },
+    "lr300_space": {
+      "source": "family_fallback:auto_rifle",
+      "weapon": "lr300_space"
+    },
+    "m16a2": {
+      "source": "calibrated",
+      "weapon": "m16a2"
+    },
+    "mgl": {
+      "source": "family_disabled",
+      "weapon": "mgl"
+    },
+    "minigun": {
+      "source": "calibrated",
+      "weapon": "minigun"
+    },
+    "rifle.bolt": {
+      "source": "calibrated",
+      "weapon": "bolt_rifle"
+    },
+    "rifle.l96": {
+      "source": "calibrated",
+      "weapon": "l96"
+    },
+    "rifle.lr300": {
+      "source": "calibrated",
+      "weapon": "lr300"
+    },
+    "rifle.m249": {
+      "source": "calibrated",
+      "weapon": "m249"
+    },
+    "rifle.m39": {
+      "source": "family_fallback:semi_rifle",
+      "weapon": "m39"
+    },
+    "rifle.semiauto": {
+      "source": "calibrated",
+      "weapon": "semi_auto_rifle"
+    },
+    "rocket_launcher": {
+      "source": "calibrated",
+      "weapon": "rocket_launcher"
+    },
+    "rocket_launcher_dragon": {
+      "source": "family_disabled",
+      "weapon": "rocket_launcher_dragon"
+    },
+    "rpg7": {
+      "source": "family_disabled",
+      "weapon": "rpg7"
+    },
+    "sks": {
+      "source": "family_fallback:semi_rifle",
+      "weapon": "sks"
+    },
+    "smg.2": {
+      "source": "calibrated",
+      "weapon": "smg"
+    },
+    "smg.mp5": {
+      "source": "calibrated",
+      "weapon": "mp5"
+    },
+    "smg.thompson": {
+      "source": "family_fallback:smg",
+      "weapon": "thompson"
+    },
+    "t1_smg": {
+      "source": "family_fallback:smg",
+      "weapon": "t1_smg"
+    }
+  },
+  "recommendations": {
+    "Weapons.ak47u.MaxAccuracy": {
+      "confidence": 0.938,
+      "current": 0.35,
+      "delta": 0.6,
+      "recommended": 0.95,
+      "source": "calibrated"
+    },
+    "Weapons.ak47u.SafeDistance": {
+      "confidence": 0.938,
+      "current": 15.0,
+      "delta": 15.5,
+      "recommended": 30.5,
+      "source": "calibrated"
+    },
+    "Weapons.ak47u_diver.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 0.843,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.ak47u_diver.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 46.6,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.ak47u_diver.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 40,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.ak47u_ice.MaxAccuracy": {
+      "confidence": 0.372,
+      "current": "unset",
+      "delta": null,
+      "recommended": 0.821,
+      "source": "calibrated"
+    },
+    "Weapons.ak47u_ice.SafeDistance": {
+      "confidence": 0.372,
+      "current": "unset",
+      "delta": null,
+      "recommended": 10.2,
+      "source": "calibrated"
+    },
+    "Weapons.ak47u_ice.SampleCount": {
+      "confidence": 0.372,
+      "current": "unset",
+      "delta": null,
+      "recommended": 40,
+      "source": "calibrated"
+    },
+    "Weapons.ak47u_jungle.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 0.843,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.ak47u_jungle.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 46.6,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.ak47u_jungle.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 40,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.ak47u_med.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 0.843,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.ak47u_med.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 46.6,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.ak47u_med.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 40,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.hmlmg.MaxAccuracy": {
+      "confidence": 0.535,
+      "current": 0.3,
+      "delta": 0.578,
+      "recommended": 0.878,
+      "source": "calibrated"
+    },
+    "Weapons.hmlmg.SafeDistance": {
+      "confidence": 0.535,
+      "current": 25.0,
+      "delta": -14.5,
+      "recommended": 10.5,
+      "source": "calibrated"
+    },
+    "Weapons.homing_missile_launcher.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 1.0,
+      "source": "family_disabled"
+    },
+    "Weapons.homing_missile_launcher.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 25.0,
+      "source": "family_disabled"
+    },
+    "Weapons.homing_missile_launcher.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 20,
+      "source": "family_disabled"
+    },
+    "Weapons.lr300_space.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 0.843,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.lr300_space.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 46.6,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.lr300_space.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 40,
+      "source": "family_fallback:auto_rifle"
+    },
+    "Weapons.m16a2.MaxAccuracy": {
+      "confidence": 0.771,
+      "current": "unset",
+      "delta": null,
+      "recommended": 0.6,
+      "source": "calibrated"
+    },
+    "Weapons.m16a2.SafeDistance": {
+      "confidence": 0.771,
+      "current": "unset",
+      "delta": null,
+      "recommended": 62.1,
+      "source": "calibrated"
+    },
+    "Weapons.m16a2.SampleCount": {
+      "confidence": 0.771,
+      "current": "unset",
+      "delta": null,
+      "recommended": 40,
+      "source": "calibrated"
+    },
+    "Weapons.mgl.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 1.0,
+      "source": "family_disabled"
+    },
+    "Weapons.mgl.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 25.0,
+      "source": "family_disabled"
+    },
+    "Weapons.mgl.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 20,
+      "source": "family_disabled"
+    },
+    "Weapons.minigun.MaxAccuracy": {
+      "confidence": 0.205,
+      "current": "unset",
+      "delta": null,
+      "recommended": 0.854,
+      "source": "calibrated"
+    },
+    "Weapons.minigun.SafeDistance": {
+      "confidence": 0.205,
+      "current": "unset",
+      "delta": null,
+      "recommended": 13.5,
+      "source": "calibrated"
+    },
+    "Weapons.minigun.SampleCount": {
+      "confidence": 0.205,
+      "current": "unset",
+      "delta": null,
+      "recommended": 50,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.bolt.MaxAccuracy": {
+      "confidence": 0.784,
+      "current": 0.65,
+      "delta": 0.273,
+      "recommended": 0.923,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.bolt.SafeDistance": {
+      "confidence": 0.784,
+      "current": 50.0,
+      "delta": -31.8,
+      "recommended": 18.2,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.l96.MaxAccuracy": {
+      "confidence": 0.714,
+      "current": 0.7,
+      "delta": 0.233,
+      "recommended": 0.933,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.l96.SafeDistance": {
+      "confidence": 0.714,
+      "current": 70.0,
+      "delta": -37.6,
+      "recommended": 32.4,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.l96.SampleCount": {
+      "confidence": 0.714,
+      "current": 10,
+      "delta": 6.0,
+      "recommended": 16,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.lr300.MaxAccuracy": {
+      "confidence": 0.892,
+      "current": 0.4,
+      "delta": 0.55,
+      "recommended": 0.95,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.lr300.SafeDistance": {
+      "confidence": 0.892,
+      "current": 25.0,
+      "delta": 40.3,
+      "recommended": 65.3,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.m249.MaxAccuracy": {
+      "confidence": 0.907,
+      "current": 0.3,
+      "delta": 0.52,
+      "recommended": 0.82,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.m249.SafeDistance": {
+      "confidence": 0.907,
+      "current": 30.0,
+      "delta": 16.5,
+      "recommended": 46.5,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.m249.SampleCount": {
+      "confidence": 0.907,
+      "current": 60,
+      "delta": -10.0,
+      "recommended": 50,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.m39.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": 0.5,
+      "delta": 0.143,
+      "recommended": 0.643,
+      "source": "family_fallback:semi_rifle"
+    },
+    "Weapons.rifle.m39.SafeDistance": {
+      "confidence": 0.3,
+      "current": 40.0,
+      "delta": 80.2,
+      "recommended": 120.2,
+      "source": "family_fallback:semi_rifle"
+    },
+    "Weapons.rifle.m39.SampleCount": {
+      "confidence": 0.3,
+      "current": 25,
+      "delta": 15.0,
+      "recommended": 40,
+      "source": "family_fallback:semi_rifle"
+    },
+    "Weapons.rifle.semiauto.MaxAccuracy": {
+      "confidence": 0.329,
+      "current": 0.45,
+      "delta": 0.193,
+      "recommended": 0.643,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.semiauto.SafeDistance": {
+      "confidence": 0.329,
+      "current": 30.0,
+      "delta": 90.2,
+      "recommended": 120.2,
+      "source": "calibrated"
+    },
+    "Weapons.rifle.semiauto.SampleCount": {
+      "confidence": 0.329,
+      "current": 30,
+      "delta": 10.0,
+      "recommended": 40,
+      "source": "calibrated"
+    },
+    "Weapons.rocket_launcher.MaxAccuracy": {
+      "confidence": 0.814,
+      "current": "unset",
+      "delta": null,
+      "recommended": 1.0,
+      "source": "calibrated"
+    },
+    "Weapons.rocket_launcher.SafeDistance": {
+      "confidence": 0.814,
+      "current": "unset",
+      "delta": null,
+      "recommended": 8.0,
+      "source": "calibrated"
+    },
+    "Weapons.rocket_launcher.SampleCount": {
+      "confidence": 0.814,
+      "current": "unset",
+      "delta": null,
+      "recommended": 20,
+      "source": "calibrated"
+    },
+    "Weapons.rocket_launcher_dragon.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 1.0,
+      "source": "family_disabled"
+    },
+    "Weapons.rocket_launcher_dragon.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 25.0,
+      "source": "family_disabled"
+    },
+    "Weapons.rocket_launcher_dragon.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 20,
+      "source": "family_disabled"
+    },
+    "Weapons.rpg7.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 1.0,
+      "source": "family_disabled"
+    },
+    "Weapons.rpg7.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 25.0,
+      "source": "family_disabled"
+    },
+    "Weapons.rpg7.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 20,
+      "source": "family_disabled"
+    },
+    "Weapons.sks.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 0.643,
+      "source": "family_fallback:semi_rifle"
+    },
+    "Weapons.sks.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 120.2,
+      "source": "family_fallback:semi_rifle"
+    },
+    "Weapons.sks.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 40,
+      "source": "family_fallback:semi_rifle"
+    },
+    "Weapons.smg.2.MaxAccuracy": {
+      "confidence": 0.95,
+      "current": 0.35,
+      "delta": 0.558,
+      "recommended": 0.908,
+      "source": "calibrated"
+    },
+    "Weapons.smg.2.SafeDistance": {
+      "confidence": 0.95,
+      "current": 15.0,
+      "delta": -7.0,
+      "recommended": 8.0,
+      "source": "calibrated"
+    },
+    "Weapons.smg.mp5.MaxAccuracy": {
+      "confidence": 0.714,
+      "current": 0.35,
+      "delta": 0.65,
+      "recommended": 1.0,
+      "source": "calibrated"
+    },
+    "Weapons.smg.mp5.SafeDistance": {
+      "confidence": 0.714,
+      "current": 20.0,
+      "delta": -12.0,
+      "recommended": 8.0,
+      "source": "calibrated"
+    },
+    "Weapons.smg.mp5.SampleCount": {
+      "confidence": 0.714,
+      "current": 45,
+      "delta": -5.0,
+      "recommended": 40,
+      "source": "calibrated"
+    },
+    "Weapons.smg.thompson.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": 0.35,
+      "delta": 0.597,
+      "recommended": 0.947,
+      "source": "family_fallback:smg"
+    },
+    "Weapons.smg.thompson.SafeDistance": {
+      "confidence": 0.3,
+      "current": 18.0,
+      "delta": -10.0,
+      "recommended": 8.0,
+      "source": "family_fallback:smg"
+    },
+    "Weapons.t1_smg.MaxAccuracy": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 0.947,
+      "source": "family_fallback:smg"
+    },
+    "Weapons.t1_smg.SafeDistance": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 8.0,
+      "source": "family_fallback:smg"
+    },
+    "Weapons.t1_smg.SampleCount": {
+      "confidence": 0.3,
+      "current": "unset",
+      "delta": null,
+      "recommended": 40,
+      "source": "family_fallback:smg"
+    }
+  },
+  "trained_at": "2026-07-27T18:04:36Z",
+  "trained_on_samples": 34745,
+  "weapon_details": {
+    "ak47u": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0406,
+        "zero_damage_rate": 0.0373
+      },
+      "confidence": 0.938,
+      "current": {
+        "MaxAccuracy": 0.35,
+        "SafeDistance": 15.0,
+        "SampleCount": 40
+      },
+      "current_behaviour": {
+        "flag_rate": 0.4635,
+        "zero_damage_rate": 0.0886
+      },
+      "disabled_reason": null,
+      "family": "auto_rifle",
+      "noise_sample_count": 3,
+      "observed": {
+        "bogus_distance_share": 0.073,
+        "evaluations": 9348,
+        "hit_distance_pct": {
+          "p50": 3.6,
+          "p90": 10.1,
+          "p99": 91.6
+        },
+        "hits": 9348,
+        "median_shot_interval_ms": 134.0,
+        "penalisable_evaluations": 8925,
+        "players": 122,
+        "qualifying_players": 92,
+        "raw_accuracy": 0.0787,
+        "saturation_share": 0.0373,
+        "shots": 118716,
+        "weighted_score_p95": 1.19,
+        "weighted_score_p95_unclamped": 40.47,
+        "window_accuracy_pct": {
+          "p50": 0.325,
+          "p75": 0.475,
+          "p90": 0.65,
+          "p95": 0.775,
+          "p99": 0.95
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0034,
+        "flagged_players": 0,
+        "qualifying_players": 92
+      },
+      "recommended": {
+        "MaxAccuracy": 0.95,
+        "SafeDistance": 30.5,
+        "SampleCount": 40
+      },
+      "weapon": "ak47u"
+    },
+    "ak47u_ice": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0107,
+        "zero_damage_rate": 0.0
+      },
+      "confidence": 0.372,
+      "current": null,
+      "current_behaviour": {
+        "flag_rate": 0.0036,
+        "zero_damage_rate": 0.0
+      },
+      "disabled_reason": null,
+      "family": "auto_rifle",
+      "noise_sample_count": 2,
+      "observed": {
+        "bogus_distance_share": 0.0,
+        "evaluations": 298,
+        "hit_distance_pct": {
+          "p50": 4.8,
+          "p90": 10.2,
+          "p99": 26.5
+        },
+        "hits": 298,
+        "median_shot_interval_ms": 133.0,
+        "penalisable_evaluations": 281,
+        "players": 9,
+        "qualifying_players": 5,
+        "raw_accuracy": 0.0749,
+        "saturation_share": 0.0,
+        "shots": 3976,
+        "weighted_score_p95": 1.9,
+        "weighted_score_p95_unclamped": 1.9,
+        "window_accuracy_pct": {
+          "p50": 0.175,
+          "p75": 0.25,
+          "p90": 0.35,
+          "p95": 0.425,
+          "p99": 0.821
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0107,
+        "flagged_players": 0,
+        "qualifying_players": 5
+      },
+      "recommended": {
+        "MaxAccuracy": 0.821,
+        "SafeDistance": 10.2,
+        "SampleCount": 40
+      },
+      "weapon": "ak47u_ice"
+    },
+    "bolt_rifle": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0161,
+        "zero_damage_rate": 0.0161
+      },
+      "confidence": 0.784,
+      "current": {
+        "MaxAccuracy": 0.65,
+        "SafeDistance": 50.0,
+        "SampleCount": 12
+      },
+      "current_behaviour": {
+        "flag_rate": 0.5607,
+        "zero_damage_rate": 0.0839
+      },
+      "disabled_reason": null,
+      "family": "sniper",
+      "noise_sample_count": 15,
+      "observed": {
+        "bogus_distance_share": 0.0,
+        "evaluations": 815,
+        "hit_distance_pct": {
+          "p50": 9.3,
+          "p90": 18.2,
+          "p99": 23.7
+        },
+        "hits": 815,
+        "median_shot_interval_ms": 0.0,
+        "penalisable_evaluations": 560,
+        "players": 29,
+        "qualifying_players": 17,
+        "raw_accuracy": 0.2816,
+        "saturation_share": 0.0161,
+        "shots": 2894,
+        "weighted_score_p95": 1.04,
+        "weighted_score_p95_unclamped": 1.04,
+        "window_accuracy_pct": {
+          "p50": 0.667,
+          "p75": 0.75,
+          "p90": 0.833,
+          "p95": 0.917,
+          "p99": 0.917
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0,
+        "flagged_players": 0,
+        "qualifying_players": 17
+      },
+      "recommended": {
+        "MaxAccuracy": 0.923,
+        "SafeDistance": 18.2,
+        "SampleCount": 12
+      },
+      "weapon": "bolt_rifle"
+    },
+    "hmlmg": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0129,
+        "zero_damage_rate": 0.0
+      },
+      "confidence": 0.535,
+      "current": {
+        "MaxAccuracy": 0.3,
+        "SafeDistance": 25.0,
+        "SampleCount": 50
+      },
+      "current_behaviour": {
+        "flag_rate": 0.5016,
+        "zero_damage_rate": 0.0291
+      },
+      "disabled_reason": null,
+      "family": "lmg",
+      "noise_sample_count": 3,
+      "observed": {
+        "bogus_distance_share": 0.0,
+        "evaluations": 355,
+        "hit_distance_pct": {
+          "p50": 2.4,
+          "p90": 10.5,
+          "p99": 17.0
+        },
+        "hits": 355,
+        "median_shot_interval_ms": 133.0,
+        "penalisable_evaluations": 309,
+        "players": 18,
+        "qualifying_players": 8,
+        "raw_accuracy": 0.031,
+        "saturation_share": 0.0,
+        "shots": 11441,
+        "weighted_score_p95": 1.16,
+        "weighted_score_p95_unclamped": 1.16,
+        "window_accuracy_pct": {
+          "p50": 0.302,
+          "p75": 0.5,
+          "p90": 0.573,
+          "p95": 0.66,
+          "p99": 0.878
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0129,
+        "flagged_players": 0,
+        "qualifying_players": 8
+      },
+      "recommended": {
+        "MaxAccuracy": 0.878,
+        "SafeDistance": 10.5,
+        "SampleCount": 50
+      },
+      "weapon": "hmlmg"
+    },
+    "l96": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0697,
+        "zero_damage_rate": 0.0132
+      },
+      "confidence": 0.714,
+      "current": {
+        "MaxAccuracy": 0.7,
+        "SafeDistance": 70.0,
+        "SampleCount": 10
+      },
+      "current_behaviour": {
+        "flag_rate": 0.4138,
+        "zero_damage_rate": 0.0613
+      },
+      "disabled_reason": null,
+      "family": "sniper",
+      "noise_sample_count": 14,
+      "observed": {
+        "bogus_distance_share": 0.0,
+        "evaluations": 1222,
+        "hit_distance_pct": {
+          "p50": 14.3,
+          "p90": 32.4,
+          "p99": 41.2
+        },
+        "hits": 1222,
+        "median_shot_interval_ms": 0.0,
+        "penalisable_evaluations": 1061,
+        "players": 20,
+        "qualifying_players": 12,
+        "raw_accuracy": 0.3801,
+        "saturation_share": 0.0132,
+        "shots": 3215,
+        "weighted_score_p95": 1.1,
+        "weighted_score_p95_unclamped": 1.1,
+        "window_accuracy_pct": {
+          "p50": 0.688,
+          "p75": 0.806,
+          "p90": 0.875,
+          "p95": 0.938,
+          "p99": 0.938
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0,
+        "flagged_players": 0,
+        "qualifying_players": 12
+      },
+      "recommended": {
+        "MaxAccuracy": 0.933,
+        "SafeDistance": 32.4,
+        "SampleCount": 16
+      },
+      "weapon": "l96"
+    },
+    "lr300": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0078,
+        "zero_damage_rate": 0.0004
+      },
+      "confidence": 0.892,
+      "current": {
+        "MaxAccuracy": 0.4,
+        "SafeDistance": 25.0,
+        "SampleCount": 40
+      },
+      "current_behaviour": {
+        "flag_rate": 0.2389,
+        "zero_damage_rate": 0.0498
+      },
+      "disabled_reason": null,
+      "family": "auto_rifle",
+      "noise_sample_count": 2,
+      "observed": {
+        "bogus_distance_share": 0.0,
+        "evaluations": 2525,
+        "hit_distance_pct": {
+          "p50": 5.8,
+          "p90": 65.3,
+          "p99": 179.2
+        },
+        "hits": 2525,
+        "median_shot_interval_ms": 122.0,
+        "penalisable_evaluations": 2311,
+        "players": 66,
+        "qualifying_players": 40,
+        "raw_accuracy": 0.0534,
+        "saturation_share": 0.0004,
+        "shots": 47317,
+        "weighted_score_p95": 1.35,
+        "weighted_score_p95_unclamped": 1.35,
+        "window_accuracy_pct": {
+          "p50": 0.275,
+          "p75": 0.4,
+          "p90": 0.575,
+          "p95": 0.725,
+          "p99": 0.95
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0074,
+        "flagged_players": 0,
+        "qualifying_players": 40
+      },
+      "recommended": {
+        "MaxAccuracy": 0.95,
+        "SafeDistance": 65.3,
+        "SampleCount": 40
+      },
+      "weapon": "lr300"
+    },
+    "m16a2": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0085,
+        "zero_damage_rate": 0.0
+      },
+      "confidence": 0.771,
+      "current": null,
+      "current_behaviour": {
+        "flag_rate": 0.0,
+        "zero_damage_rate": 0.0
+      },
+      "disabled_reason": null,
+      "family": "auto_rifle",
+      "noise_sample_count": 5,
+      "observed": {
+        "bogus_distance_share": 0.0,
+        "evaluations": 775,
+        "hit_distance_pct": {
+          "p50": 5.0,
+          "p90": 15.2,
+          "p99": 186.3
+        },
+        "hits": 775,
+        "median_shot_interval_ms": 66.0,
+        "penalisable_evaluations": 703,
+        "players": 27,
+        "qualifying_players": 20,
+        "raw_accuracy": 0.0355,
+        "saturation_share": 0.0,
+        "shots": 21805,
+        "weighted_score_p95": 1.09,
+        "weighted_score_p95_unclamped": 1.09,
+        "window_accuracy_pct": {
+          "p50": 0.225,
+          "p75": 0.325,
+          "p90": 0.4,
+          "p95": 0.45,
+          "p99": 0.6
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0085,
+        "flagged_players": 0,
+        "qualifying_players": 20
+      },
+      "recommended": {
+        "MaxAccuracy": 0.6,
+        "SafeDistance": 62.1,
+        "SampleCount": 40
+      },
+      "weapon": "m16a2"
+    },
+    "m249": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0106,
+        "zero_damage_rate": 0.004
+      },
+      "confidence": 0.907,
+      "current": {
+        "MaxAccuracy": 0.3,
+        "SafeDistance": 30.0,
+        "SampleCount": 60
+      },
+      "current_behaviour": {
+        "flag_rate": 0.3494,
+        "zero_damage_rate": 0.0156
+      },
+      "disabled_reason": null,
+      "family": "lmg",
+      "noise_sample_count": 3,
+      "observed": {
+        "bogus_distance_share": 0.0,
+        "evaluations": 7177,
+        "hit_distance_pct": {
+          "p50": 4.5,
+          "p90": 46.5,
+          "p99": 136.6
+        },
+        "hits": 7177,
+        "median_shot_interval_ms": 126.0,
+        "penalisable_evaluations": 6990,
+        "players": 78,
+        "qualifying_players": 57,
+        "raw_accuracy": 0.0424,
+        "saturation_share": 0.0024,
+        "shots": 169196,
+        "weighted_score_p95": 1.45,
+        "weighted_score_p95_unclamped": 1.45,
+        "window_accuracy_pct": {
+          "p50": 0.24,
+          "p75": 0.36,
+          "p90": 0.5,
+          "p95": 0.62,
+          "p99": 0.82
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0082,
+        "flagged_players": 0,
+        "qualifying_players": 57
+      },
+      "recommended": {
+        "MaxAccuracy": 0.82,
+        "SafeDistance": 46.5,
+        "SampleCount": 50
+      },
+      "weapon": "m249"
+    },
+    "minigun": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0155,
+        "zero_damage_rate": 0.0
+      },
+      "confidence": 0.205,
+      "current": null,
+      "current_behaviour": {
+        "flag_rate": 0.0155,
+        "zero_damage_rate": 0.0
+      },
+      "disabled_reason": null,
+      "family": "lmg",
+      "noise_sample_count": 1,
+      "observed": {
+        "bogus_distance_share": 0.0,
+        "evaluations": 170,
+        "hit_distance_pct": {
+          "p50": 4.9,
+          "p90": 13.5,
+          "p99": 16.1
+        },
+        "hits": 170,
+        "median_shot_interval_ms": 100.0,
+        "penalisable_evaluations": 129,
+        "players": 14,
+        "qualifying_players": 5,
+        "raw_accuracy": 0.0267,
+        "saturation_share": 0.0,
+        "shots": 6369,
+        "weighted_score_p95": 1.02,
+        "weighted_score_p95_unclamped": 1.02,
+        "window_accuracy_pct": {
+          "p50": 0.14,
+          "p75": 0.26,
+          "p90": 0.545,
+          "p95": 0.657,
+          "p99": 0.854
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0155,
+        "flagged_players": 0,
+        "qualifying_players": 5
+      },
+      "recommended": {
+        "MaxAccuracy": 0.854,
+        "SafeDistance": 13.5,
+        "SampleCount": 50
+      },
+      "weapon": "minigun"
+    },
+    "mp5": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0,
+        "zero_damage_rate": 0.0
+      },
+      "confidence": 0.714,
+      "current": {
+        "MaxAccuracy": 0.35,
+        "SafeDistance": 20.0,
+        "SampleCount": 45
+      },
+      "current_behaviour": {
+        "flag_rate": 0.546,
+        "zero_damage_rate": 0.3452
+      },
+      "disabled_reason": "accuracy metric saturated (32% of actionable windows read 100%) - misses are being dropped for this weapon, raise MissExpirySeconds before thresholding it",
+      "family": "smg",
+      "noise_sample_count": null,
+      "observed": {
+        "bogus_distance_share": 0.3301,
+        "evaluations": 612,
+        "hit_distance_pct": {
+          "p50": 3.2,
+          "p90": 7.0,
+          "p99": 9.5
+        },
+        "hits": 612,
+        "median_shot_interval_ms": 101.0,
+        "penalisable_evaluations": 533,
+        "players": 20,
+        "qualifying_players": null,
+        "raw_accuracy": 0.092,
+        "saturation_share": 0.3208,
+        "shots": 6651,
+        "weighted_score_p95": 1.02,
+        "weighted_score_p95_unclamped": 153.7,
+        "window_accuracy_pct": {
+          "p50": 0.3,
+          "p75": 0.407,
+          "p90": 0.676,
+          "p95": 0.774,
+          "p99": 0.915
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0,
+        "flagged_players": 0,
+        "qualifying_players": 20
+      },
+      "recommended": {
+        "MaxAccuracy": 1.0,
+        "SafeDistance": 8.0,
+        "SampleCount": 40
+      },
+      "weapon": "mp5"
+    },
+    "rocket_launcher": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0,
+        "zero_damage_rate": 0.0
+      },
+      "confidence": 0.814,
+      "current": null,
+      "current_behaviour": {
+        "flag_rate": 0.0,
+        "zero_damage_rate": 0.0
+      },
+      "disabled_reason": "hit ratio carries no signal for this weapon family",
+      "family": "explosive",
+      "noise_sample_count": null,
+      "observed": {
+        "bogus_distance_share": 0.0577,
+        "evaluations": 1561,
+        "hit_distance_pct": {
+          "p50": 1.5,
+          "p90": 3.4,
+          "p99": 4.1
+        },
+        "hits": 1561,
+        "median_shot_interval_ms": 0.0,
+        "penalisable_evaluations": 1068,
+        "players": 35,
+        "qualifying_players": null,
+        "raw_accuracy": 0.0,
+        "saturation_share": 1.0,
+        "shots": 0,
+        "weighted_score_p95": 1.0,
+        "weighted_score_p95_unclamped": 92.59,
+        "window_accuracy_pct": {
+          "p50": 0.0,
+          "p75": 0.0,
+          "p90": 0.0,
+          "p95": 0.0,
+          "p99": 0.0
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0,
+        "flagged_players": 0,
+        "qualifying_players": 0
+      },
+      "recommended": {
+        "MaxAccuracy": 1.0,
+        "SafeDistance": 8.0,
+        "SampleCount": 20
+      },
+      "weapon": "rocket_launcher"
+    },
+    "semi_auto_rifle": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0105,
+        "zero_damage_rate": 0.0
+      },
+      "confidence": 0.329,
+      "current": {
+        "MaxAccuracy": 0.45,
+        "SafeDistance": 30.0,
+        "SampleCount": 30
+      },
+      "current_behaviour": {
+        "flag_rate": 0.2737,
+        "zero_damage_rate": 0.0
+      },
+      "disabled_reason": null,
+      "family": "semi_rifle",
+      "noise_sample_count": 11,
+      "observed": {
+        "bogus_distance_share": 0.0164,
+        "evaluations": 304,
+        "hit_distance_pct": {
+          "p50": 2.3,
+          "p90": 9.2,
+          "p99": 360.5
+        },
+        "hits": 304,
+        "median_shot_interval_ms": 234.0,
+        "penalisable_evaluations": 190,
+        "players": 18,
+        "qualifying_players": 5,
+        "raw_accuracy": 0.0307,
+        "saturation_share": 0.0,
+        "shots": 9887,
+        "weighted_score_p95": 1.0,
+        "weighted_score_p95_unclamped": 1.0,
+        "window_accuracy_pct": {
+          "p50": 0.354,
+          "p75": 0.475,
+          "p90": 0.535,
+          "p95": 0.596,
+          "p99": 0.643
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0105,
+        "flagged_players": 0,
+        "qualifying_players": 5
+      },
+      "recommended": {
+        "MaxAccuracy": 0.643,
+        "SafeDistance": 120.2,
+        "SampleCount": 40
+      },
+      "weapon": "semi_auto_rifle"
+    },
+    "smg": {
+      "calibrated_behaviour": {
+        "flag_rate": 0.0165,
+        "zero_damage_rate": 0.0067
+      },
+      "confidence": 0.95,
+      "current": {
+        "MaxAccuracy": 0.35,
+        "SafeDistance": 15.0,
+        "SampleCount": 40
+      },
+      "current_behaviour": {
+        "flag_rate": 0.4453,
+        "zero_damage_rate": 0.0244
+      },
+      "disabled_reason": null,
+      "family": "smg",
+      "noise_sample_count": 3,
+      "observed": {
+        "bogus_distance_share": 0.0296,
+        "evaluations": 12115,
+        "hit_distance_pct": {
+          "p50": 3.2,
+          "p90": 6.2,
+          "p99": 7.3
+        },
+        "hits": 12115,
+        "median_shot_interval_ms": 102.0,
+        "penalisable_evaluations": 11487,
+        "players": 152,
+        "qualifying_players": 105,
+        "raw_accuracy": 0.0917,
+        "saturation_share": 0.0064,
+        "shots": 132173,
+        "weighted_score_p95": 1.0,
+        "weighted_score_p95_unclamped": 1.0,
+        "window_accuracy_pct": {
+          "p50": 0.35,
+          "p75": 0.45,
+          "p90": 0.575,
+          "p95": 0.65,
+          "p99": 0.908
+        }
+      },
+      "projected_behaviour": {
+        "event_flag_rate": 0.0101,
+        "flagged_players": 0,
+        "qualifying_players": 105
+      },
+      "recommended": {
+        "MaxAccuracy": 0.908,
+        "SafeDistance": 8.0,
+        "SampleCount": 40
+      },
+      "weapon": "smg"
+    }
+  }
+}

@@ -4,6 +4,86 @@ All notable changes to this project should be documented in this file.
 
 The format is based on Keep a Changelog.
 
+## [Unreleased]
+
+### Added
+- **ML training pipeline** (`ml-service/train.py`) that calibrates the plugin config from real event
+  logs. Replays telemetry through a Python replica of the plugin's own `WeaponData` window logic, then
+  fits `MaxAccuracy` / `SampleCount` / `SafeDistance` / `MissExpirySeconds` to the observed
+  distribution instead of hand-picked constants. Outputs `model.json`, a paste-ready
+  `config-recommendation.json`, and `reports/training-report.md`. Stdlib only — no numpy/sklearn.
+- `ml-service/server.py` now serves that trained model: real per-weapon anomaly baselines on
+  `/ingest`, calibrated values on `/config-recommend`, persisted admin verdicts on `/feedback`, plus
+  new `/model-info` and `/reload-model` endpoints. Scores carry per-feature contributions so a
+  suggestion can be explained. Falls back to reporting `model_loaded: false` rather than guessing.
+- `ml-service/selftest.py` — 124 assertions over the replay replica, calibration, scorer and
+  endpoints. The replay cases are pinned to values worked out by hand from `MogyAntiCheat.cs`, so
+  they fail if the two implementations drift apart.
+- `docs/ML_TRAINING.md` — how each threshold is derived, and the findings from the first run.
+
+- ML feature `head_streak` (longest run of consecutive headshots) — measured at 26 robust sigmas
+  between the population median and the most extreme player, and largely independent of accuracy
+  (r = +0.42), making it the strongest single signal the existing telemetry contains. Features
+  `aim_snap_speed` and `aim_settle_ms` are declared for the new aim telemetry but stay **inert**
+  until logs carry it: a feature with no fitted baseline scores zero, so nothing changes until a
+  training run sees real values. Two other candidates were measured and rejected — first-shot hit
+  rate (r = +0.88 with accuracy, i.e. redundant) and trigger-interval quantisation (independent but
+  only 2.9 sigma at the extreme).
+- `ml-service/report_charts.py` — anonymized per-player statistics page (`reports/player-statistics.html`):
+  one dot per player per weapon for accuracy vs volume, hit distance, headshot rate and anomaly
+  percentile, with the current and calibrated `MaxAccuracy` drawn as reference lines. Players appear
+  as opaque `P-nnn` labels with no relationship to their SteamID, so the page is shareable.
+
+### Fixed
+- **Weapon config coverage.** `ResolveWeaponConfigKey` only matched the segment after the last dot,
+  so prefab names the server actually reports (`smg`, `bolt_rifle`, `shotgun_pump`, `bow_hunting`)
+  matched nothing and `EvaluateWeapon` set `MaxAccuracy = 1.0` — no checking at all. On the reference
+  server that silently exempted **33.6% of all shots** (`smg` alone was 24%). Matching now also tries
+  case-insensitive keys, a built-in alias table (`smg` → `smg.2`), and a separator/order-insensitive
+  token signature (`bolt_rifle` ↔ `rifle.bolt`).
+- **Implausible hit distances.** New `MaxHitDistance` key (default `500`) discards distances that
+  `Vector3.Distance(info.HitPositionWorld, info.PointStart)` produces when `PointStart` is unset —
+  1000-2000 m readings on a 4k map, 3.7% of hits on the reference server. The hit still counts; only
+  the distance is dropped. Since the weighted score is squared in the penalty term, one such reading
+  was enough to null a player's damage (`mp5` weighted-score p95: 175 with them, 1.1 without). The
+  raw measurement is still written to the event log for diagnosis.
+
+### Added (plugin)
+- **`AimTracking` config block — aim kinematics telemetry.** Samples the view direction at 20 Hz for
+  players holding a ranged weapon and records, on every `shot` event, `AimDeltaDeg` (angle since the
+  previous shot), `SnapDeg` (largest angular step in the preceding 400 ms) and `SnapSettleMs` (delay
+  between that step and the trigger). Hit ratio describes the *result* of aiming; these describe the
+  *approach*, which is where assisted aim differs from a good player — an aimbot crosses a large
+  angle, stops dead and fires tens of milliseconds later, repeatably. Collected for offline analysis
+  only; the plugin does not act on them. `Enabled: false` turns sampling off.
+- `WeaponFallback` config block: per-family detection settings (`auto_rifle`, `smg`, `lmg`,
+  `semi_rifle`, `sniper`, `shotgun`, `pistol`, `projectile`, `explosive`) applied to any weapon the
+  `Weapons` block does not name, so modded or newly added weapons are checked instead of exempt.
+  `Enabled: false` restores the previous behaviour. `explosive` ships at `MaxAccuracy = 1.0` on
+  purpose — a rocket registers a hit on nearly every shot, so hit ratio carries no signal.
+- One-time console warning naming any weapon that resolves to neither a config entry nor a family.
+- `/ac-why` now reports where a weapon's thresholds came from (config key, `family:<name>`, or
+  unconfigured); `/ac-config-tune MaxHitDistance <value>` tunes the new bound live.
+
+### Notes
+Behaviour change worth reading before upgrading: closing the coverage gap applies the **existing**
+thresholds to a third more shots, which on the reference server took the flag rate from 23.3% to
+39.1%. Those thresholds were already mis-set — the accuracy they are compared against is the
+plugin's own window metric (median ~33%), not raw hits/shots (~7%), so `MaxAccuracy = 0.35` sits
+slightly *above* average rather than far above it. Calibrating with `ml-service/train.py` brings the
+same events to 2.3% (damage nulled outright: 4.7% → 1.4%). Coverage and calibration only pay off
+together — run the trainer on your own logs after upgrading, or set `WeaponFallback.Enabled = false`
+to keep the old coverage while you do.
+
+### Changed
+- Project is now **public and community-maintained**; the original author is no longer actively
+  developing new features. Added Contributing sections to `README.md` / `README.hu.md`.
+- Weekly-report webhook is no longer stored in the public source: `DefaultWeeklyReportWebhook` holds a
+  `__WEEKLY_WEBHOOK__` sentinel (resolves to empty → `.cs`/source builds send nothing). The official
+  release DLL injects the real webhook at build time via `build-release.ps1` (with `.gitignore` for
+  `webhook.secret` / `build/`). Still opt-in (`Accepted = false`) and fully overridable. Documented in
+  `docs/DATA_COLLECTION.md` and `docs/DLL_BUILD.md`.
+
 ## [1.10.0] - 2026-07-10
 
 ### Added

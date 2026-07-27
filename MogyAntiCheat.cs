@@ -29,12 +29,15 @@ namespace Oxide.Plugins
         private const int TelemetryQueueMaxSize = 5000;
         private const float TelemetryFlushIntervalSeconds = 300f;
         private const int PingBaselineSamples = 50;
+        private const int DefaultWeaponSampleCount = 40;
+        private const float DefaultMaxHitDistance = 500f;
 
         // --- Weekly telemetry report (opt-in, see docs/DATA_COLLECTION.md) ---
-        // IMPORTANT: Set this to YOUR Discord webhook URL before building/distributing the plugin,
-        // so that servers which accept the data-collection notice deliver their weekly anonymous
-        // report to you by default. Individual servers can override it in the config.
-        private const string DefaultWeeklyReportWebhook = "";
+        // The public source ships with an unresolved sentinel, so source/.cs deployments have NO default
+        // webhook and send nothing. The official release DLL is built with build-release.ps1, which
+        // replaces the sentinel with the developer's real webhook (kept out of the repo). Any server can
+        // still set WeeklyReport.DiscordWebhookUrl in its config; nothing is sent unless Accepted = true.
+        private const string DefaultWeeklyReportWebhook = "__WEEKLY_WEBHOOK__";
         private const string SaltDataFileName = "MogyAntiCheat_Salt";
         private const string WeeklyReportDataFileName = "MogyAntiCheat_WeeklyReport";
 
@@ -67,6 +70,14 @@ namespace Oxide.Plugins
         private int _webhookSentInWindow;
         private static System.Reflection.PropertyInfo _pingPropertyInfo;
         private static bool _pingPropertyResolved;
+        // Weapon lookup happens on every shot, so the resolved settings are cached per prefab name.
+        // Cleared whenever weapon config changes (see InvalidateWeaponTuningCache).
+        private readonly Dictionary<string, WeaponTuning> _weaponTuningCache = new Dictionary<string, WeaponTuning>();
+        private readonly HashSet<string> _reportedUnresolvedWeapons = new HashSet<string>();
+        // Short rolling trail of view directions per player, for the pre-shot aim analysis.
+        private readonly Dictionary<ulong, List<AimSample>> _aimTrails = new Dictionary<ulong, List<AimSample>>();
+        private readonly Dictionary<ulong, Vector3> _lastShotAim = new Dictionary<ulong, Vector3>();
+        private Timer _aimSampleTimer;
 
         private static readonly Dictionary<string, string> MessagesEn = new Dictionary<string, string>
         {
@@ -103,6 +114,7 @@ namespace Oxide.Plugins
             ["WhyUsage"] = "Usage: /ac-why [weaponShortName|active]",
             ["WhyNoWeaponData"] = "No tracked data for weapon: {0}.",
             ["WhyNoConfig"] = "No config found for weapon: {0}. Add it with /ac-weapon.",
+            ["WhyTuningSource"] = "Thresholds for {0} come from: {1}",
             ["WhySummary"] = "Weapon: {0} | Acc: {1:P1} | Shots: {2} | Max: {3:P1} | Weighted: {4:F2} | SuggestedNerf: {5:P0} | GlobalNerf: {6:P0}",
             ["WhyReasonNoData"] = "Reason: not enough samples yet (minimum 10).",
             ["WhyReasonBelowThreshold"] = "Reason: accuracy is within configured threshold.",
@@ -203,6 +215,7 @@ namespace Oxide.Plugins
             ["WhyUsage"] = "Használat: /ac-why [weaponShortName|active]",
             ["WhyNoWeaponData"] = "Nincs tárolt adat ehhez a fegyverhez: {0}.",
             ["WhyNoConfig"] = "Nincs konfiguráció ehhez a fegyverhez: {0}. Hozzáadás: /ac-weapon.",
+            ["WhyTuningSource"] = "A {0} küszöbei innen jönnek: {1}",
             ["WhySummary"] = "Fegyver: {0} | Acc: {1:P1} | Lövés: {2} | Max: {3:P1} | Súlyozott: {4:F2} | JavasoltNerf: {5:P0} | GlobálNerf: {6:P0}",
             ["WhyReasonNoData"] = "Ok: még nincs elég minta (minimum 10).",
             ["WhyReasonBelowThreshold"] = "Ok: a pontosság a beállított küszöbön belül van.",
@@ -367,6 +380,8 @@ namespace Oxide.Plugins
             public bool HasEnoughData;
             public bool IsSuspicious;
             public int SampleCount;
+            // Config key, "family:<name>", or "unconfigured" — surfaced by /ac-why and debug logs.
+            public string TuningSource;
         }
 
         private class WebhookEnvelope
@@ -444,6 +459,21 @@ namespace Oxide.Plugins
             public string EventType;
             public string HitArea;      // "head", "chest", "arm", stb. (null lövésnél/missnél)
             public float GameTimeHour;  // 0–24, -1 ha nem elérhető
+
+            // --- Aim kinematics (AimTracking; -1 when unavailable) ---
+            // Accuracy alone cannot separate an aimbot from a good player: both just hit a lot.
+            // What differs is *how the view arrives on target*. An assisted shot is preceded by a
+            // large angular step that stops dead and fires within a few tens of milliseconds; a
+            // human decelerates onto the target and the delay varies shot to shot.
+            public float AimDeltaDeg;    // angle between this shot's view direction and the previous shot's
+            public float SnapDeg;        // largest single angular step in the sampled window before this shot
+            public float SnapSettleMs;   // ms between that step and pulling the trigger
+        }
+
+        private struct AimSample
+        {
+            public float Realtime;
+            public Vector3 Forward;
         }
 
         private class MLSuggestionCacheEntry
@@ -508,6 +538,7 @@ namespace Oxide.Plugins
             _webhookWindowStart = UnityEngine.Time.realtimeSinceStartup;
             _webhookPumpTimer = timer.Every(0.25f, PumpWebhookQueue);
             _telemetryFlushTimer = timer.Every(TelemetryFlushIntervalSeconds, FlushTelemetryQueue);
+            StartAimSampling();
             _weeklyReportTimer = timer.Every(3600f, WeeklyReportTick);
 
             Puts($"Runtime detected: {_runtimeName} | Data directory: {_runtimeDataDirectory}");
@@ -525,6 +556,9 @@ namespace Oxide.Plugins
             _webhookPumpTimer?.Destroy();
             _telemetryFlushTimer?.Destroy();
             _weeklyReportTimer?.Destroy();
+            _aimSampleTimer?.Destroy();
+            _aimTrails.Clear();
+            _lastShotAim.Clear();
             FlushTelemetryQueue();
             SaveStats();
             SaveKDAStats();
@@ -665,6 +699,45 @@ namespace Oxide.Plugins
             }
         }
 
+        // Applied to any weapon the Weapons block does not name, by family. The thresholds are
+        // intentionally lenient: they are cross-server guesses meant to catch blatant outliers on
+        // modded or newly added weapons, not to fine-tune. Run `ml-service/train.py` on the server's
+        // own event logs to replace them with measured values (docs/ML_TRAINING.md).
+        private static Dictionary<string, object> BuildDefaultWeaponFallbackConfig()
+        {
+            return new Dictionary<string, object>
+            {
+                ["Enabled"] = true,
+                ["Families"] = new Dictionary<string, object>
+                {
+                    ["auto_rifle"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.85, ["SampleCount"] = 40, ["SafeDistance"] = 45.0 },
+                    ["smg"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.95, ["SampleCount"] = 40, ["SafeDistance"] = 15.0 },
+                    ["lmg"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.85, ["SampleCount"] = 50, ["SafeDistance"] = 30.0 },
+                    ["semi_rifle"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.75, ["SampleCount"] = 30, ["SafeDistance"] = 40.0 },
+                    ["sniper"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.93, ["SampleCount"] = 15, ["SafeDistance"] = 60.0 },
+                    ["shotgun"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.95, ["SampleCount"] = 15, ["SafeDistance"] = 12.0 },
+                    ["pistol"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.88, ["SampleCount"] = 20, ["SafeDistance"] = 15.0 },
+                    ["projectile"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.90, ["SampleCount"] = 12, ["SafeDistance"] = 25.0 },
+                    // A rocket or grenade registers a hit on virtually every shot, so hit ratio
+                    // carries no signal. 1.0 leaves the family unpenalised by design.
+                    ["explosive"] = new Dictionary<string, object> { ["MaxAccuracy"] = 1.0, ["SampleCount"] = 20, ["SafeDistance"] = 25.0 }
+                }
+            };
+        }
+
+        // Sampling the view direction is the only way to tell "aimed there" from "was placed there".
+        // 20 Hz resolves a snap (a snap completes well inside 100 ms) without meaningful cost:
+        // only players holding a ranged weapon are sampled, and the trail is 400 ms long.
+        private static Dictionary<string, object> BuildDefaultAimTrackingConfig()
+        {
+            return new Dictionary<string, object>
+            {
+                ["Enabled"] = true,
+                ["SampleHz"] = 20.0,
+                ["WindowMs"] = 400.0
+            };
+        }
+
         protected override void LoadDefaultConfig()
         {
             Config["Weapons"] = new Dictionary<string, object>
@@ -697,7 +770,10 @@ namespace Oxide.Plugins
                 ["shotgun.spas12"] = new Dictionary<string, object> { ["MaxAccuracy"] = 0.70, ["SampleCount"] = 20, ["SafeDistance"] = 10.0 }
             };
 
+            Config["WeaponFallback"] = BuildDefaultWeaponFallbackConfig();
+            Config["AimTracking"] = BuildDefaultAimTrackingConfig();
             Config["MissExpirySeconds"] = 20.0;
+            Config["MaxHitDistance"] = (double)DefaultMaxHitDistance;
             Config["DefaultLanguage"] = DefaultLanguageFallback;
             Config["DebugMode"] = false;
             Config["DamageReductionEnabled"] = true;
@@ -767,11 +843,21 @@ namespace Oxide.Plugins
             {
                 ["Enabled"] = true,
                 ["Accepted"] = false,
-                ["DiscordWebhookUrl"] = DefaultWeeklyReportWebhook,
+                ["DiscordWebhookUrl"] = ResolveDefaultWebhook(),
                 ["IntervalDays"] = 7,
                 ["IncludeKDA"] = true,
                 ["IncludeLagswitch"] = true
             };
+        }
+
+        // Returns the compiled-in default webhook, or empty if it was never resolved (i.e. the public
+        // source sentinel is still in place, or the value is not an http(s) URL).
+        private static string ResolveDefaultWebhook()
+        {
+            string w = DefaultWeeklyReportWebhook;
+            if (string.IsNullOrWhiteSpace(w) || !w.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+            return w;
         }
 
         private void EnsureConfigDefaults()
@@ -880,13 +966,57 @@ namespace Oxide.Plugins
             {
                 if (!weeklyCfg.ContainsKey("Enabled")) { weeklyCfg["Enabled"] = true; changed = true; }
                 if (!weeklyCfg.ContainsKey("Accepted")) { weeklyCfg["Accepted"] = false; changed = true; }
-                if (!weeklyCfg.ContainsKey("DiscordWebhookUrl")) { weeklyCfg["DiscordWebhookUrl"] = DefaultWeeklyReportWebhook; changed = true; }
+                if (!weeklyCfg.ContainsKey("DiscordWebhookUrl")) { weeklyCfg["DiscordWebhookUrl"] = ResolveDefaultWebhook(); changed = true; }
                 if (!weeklyCfg.ContainsKey("IntervalDays")) { weeklyCfg["IntervalDays"] = 7; changed = true; }
                 if (!weeklyCfg.ContainsKey("IncludeKDA")) { weeklyCfg["IncludeKDA"] = true; changed = true; }
                 if (!weeklyCfg.ContainsKey("IncludeLagswitch")) { weeklyCfg["IncludeLagswitch"] = true; changed = true; }
             }
 
+            if (Config["MaxHitDistance"] == null)
+            {
+                Config["MaxHitDistance"] = (double)DefaultMaxHitDistance;
+                changed = true;
+            }
+
+            var fallbackCfg = Config["WeaponFallback"] as Dictionary<string, object>;
+            if (fallbackCfg == null)
+            {
+                Config["WeaponFallback"] = BuildDefaultWeaponFallbackConfig();
+                changed = true;
+            }
+            else
+            {
+                if (!fallbackCfg.ContainsKey("Enabled")) { fallbackCfg["Enabled"] = true; changed = true; }
+                var families = fallbackCfg["Families"] as Dictionary<string, object>;
+                if (families == null)
+                {
+                    fallbackCfg["Families"] = (BuildDefaultWeaponFallbackConfig()["Families"] as Dictionary<string, object>);
+                    changed = true;
+                }
+                else
+                {
+                    // Add families introduced by newer plugin versions without touching tuned ones.
+                    var defaults = BuildDefaultWeaponFallbackConfig()["Families"] as Dictionary<string, object>;
+                    foreach (var entry in defaults)
+                        if (!families.ContainsKey(entry.Key)) { families[entry.Key] = entry.Value; changed = true; }
+                }
+            }
+
+            var aimCfg = Config["AimTracking"] as Dictionary<string, object>;
+            if (aimCfg == null)
+            {
+                Config["AimTracking"] = BuildDefaultAimTrackingConfig();
+                changed = true;
+            }
+            else
+            {
+                if (!aimCfg.ContainsKey("Enabled")) { aimCfg["Enabled"] = true; changed = true; }
+                if (!aimCfg.ContainsKey("SampleHz")) { aimCfg["SampleHz"] = 20.0; changed = true; }
+                if (!aimCfg.ContainsKey("WindowMs")) { aimCfg["WindowMs"] = 400.0; changed = true; }
+            }
+
             if (changed) SaveConfig();
+            InvalidateWeaponTuningCache();
         }
 
         private bool IsPingMonitoringEnabled()
@@ -1928,6 +2058,9 @@ namespace Oxide.Plugins
 
             weaponData.AddMiss(0f, ping, deltaPing);
 
+            float aimDeltaDeg, snapDeg, snapSettleMs;
+            MeasureAimKinematics(player, out aimDeltaDeg, out snapDeg, out snapSettleMs);
+
             EnqueueTelemetry(new ShotTelemetryEvent
             {
                 TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -1939,7 +2072,10 @@ namespace Oxide.Plugins
                 DeltaPingMs = deltaPing,
                 AccuracyInWindow = weaponData.GetAccuracy(),
                 EventType = "shot",
-                GameTimeHour = GetGameTimeHour()
+                GameTimeHour = GetGameTimeHour(),
+                AimDeltaDeg = aimDeltaDeg,
+                SnapDeg = snapDeg,
+                SnapSettleMs = snapSettleMs
             });
         }
 
@@ -1979,17 +2115,11 @@ namespace Oxide.Plugins
             if (weapon == null) return;
 
             string wName = weapon.ShortPrefabName.Replace(".entity", "");
-            float dist = Vector3.Distance(info.HitPositionWorld, info.PointStart);
+            float rawDist = Vector3.Distance(info.HitPositionWorld, info.PointStart);
+            float dist = SanitizeHitDistance(rawDist, wName);
             float expiry = Config["MissExpirySeconds"] != null ? Convert.ToSingle(Config["MissExpirySeconds"]) : 20f;
 
-            int limit = 40;
-            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
-            string cfgKey = ResolveWeaponConfigKey(weaponsCfg, wName);
-            if (cfgKey != null)
-            {
-                var entry = weaponsCfg[cfgKey] as Dictionary<string, object>;
-                if (entry != null && entry.ContainsKey("SampleCount")) limit = Convert.ToInt32(entry["SampleCount"]);
-            }
+            int limit = GetWeaponTuning(wName).SampleCount;
 
             Dictionary<string, WeaponData> byWeapon;
             if (!_playerStats.TryGetValue(attacker.userID, out byWeapon))
@@ -2018,14 +2148,21 @@ namespace Oxide.Plugins
                 TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 PlayerHash = HashPlayerId(attacker.userID),
                 WeaponName = wName,
-                Distance = dist,
+                // The raw measurement is logged even when it was rejected above, so the trainer can
+                // still see how often the reading is broken. Detection uses the sanitized value.
+                Distance = rawDist,
                 Hit = true,
                 PingMs = ping,
                 DeltaPingMs = deltaPing,
                 AccuracyInWindow = weaponData.GetAccuracy(),
                 EventType = "hit",
                 HitArea = hitArea,
-                GameTimeHour = gameTimeHour
+                GameTimeHour = gameTimeHour,
+                // The shot's own aim kinematics were recorded on OnWeaponFired; a hit event
+                // describes the impact, not the aim, so these stay unset here.
+                AimDeltaDeg = -1f,
+                SnapDeg = -1f,
+                SnapSettleMs = -1f
             });
 
             var evaluation = EvaluateWeapon(wName, weaponData);
@@ -2159,28 +2296,15 @@ namespace Oxide.Plugins
                 HasEnoughData = data.History.Count >= 10
             };
 
-            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
-            string cfgKey = ResolveWeaponConfigKey(weaponsCfg, weaponName);
-            if (cfgKey == null)
-            {
-                evaluation.MaxAccuracy = 1f;
-                evaluation.SafeDistance = 1f;
-                evaluation.WeightedScore = data.GetWeightedScore(1f);
-                return evaluation;
-            }
-
-            var cfg = weaponsCfg[cfgKey] as Dictionary<string, object>;
-            if (cfg == null)
-            {
-                evaluation.MaxAccuracy = 1f;
-                evaluation.SafeDistance = 1f;
-                evaluation.WeightedScore = data.GetWeightedScore(1f);
-                return evaluation;
-            }
-
-            evaluation.MaxAccuracy = Convert.ToSingle(cfg["MaxAccuracy"]);
-            evaluation.SafeDistance = Convert.ToSingle(cfg["SafeDistance"]);
+            // Falls back to the weapon's family when the config does not name it, and only then to
+            // MaxAccuracy = 1.0 (never flagged). See GetWeaponTuning.
+            var tuning = GetWeaponTuning(weaponName);
+            evaluation.MaxAccuracy = tuning.MaxAccuracy;
+            evaluation.SafeDistance = tuning.SafeDistance;
+            evaluation.TuningSource = tuning.Source;
             evaluation.WeightedScore = data.GetWeightedScore(evaluation.SafeDistance);
+
+            if (!tuning.AppliesPenalty) return evaluation;
 
             if (!evaluation.HasEnoughData || evaluation.Accuracy <= evaluation.MaxAccuracy)
             {
@@ -2419,19 +2543,323 @@ namespace Oxide.Plugins
             return activeWeapon == null ? string.Empty : activeWeapon.ShortPrefabName.Replace(".entity", "");
         }
 
-        // Carbon omits the category prefix from ShortPrefabName (e.g. "m39" instead of Oxide's "rifle.m39").
-        // Try exact match first, then fall back to matching the segment after the last dot.
+        private static readonly char[] WeaponNameSeparators = { '.', '_', '-' };
+
+        // Prefab short names that no amount of pattern matching can bridge to the config's item
+        // shortnames. Rust reports "smg" for the Custom SMG whose item shortname is "smg.2".
+        private static readonly Dictionary<string, string> WeaponKeyAliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["smg"] = "smg.2",
+            ["semi_auto_rifle"] = "rifle.semiauto",
+            ["semi_auto_pistol"] = "pistol.semiauto",
+            ["hunting_bow"] = "bow.hunting"
+        };
+
+        // Name fragments used to place an unconfigured weapon into a family. Order matters: the
+        // first match wins, so more specific fragments come first.
+        private static readonly List<KeyValuePair<string, string[]>> WeaponFamilyPatterns = new List<KeyValuePair<string, string[]>>
+        {
+            new KeyValuePair<string, string[]>("explosive", new[] { "rocket_launcher", "rpg", "mgl", "grenade", "launcher", "flamethrower" }),
+            new KeyValuePair<string, string[]>("lmg", new[] { "m249", "hmlmg", "minigun", "lmg" }),
+            new KeyValuePair<string, string[]>("sniper", new[] { "l96", "bolt", "sniper" }),
+            new KeyValuePair<string, string[]>("semi_rifle", new[] { "semi_auto_rifle", "semiauto_rifle", "sks", "m39" }),
+            new KeyValuePair<string, string[]>("auto_rifle", new[] { "ak47", "ak47u", "lr300", "m16", "assault", "custom_smg" }),
+            new KeyValuePair<string, string[]>("smg", new[] { "smg", "mp5", "thompson" }),
+            new KeyValuePair<string, string[]>("shotgun", new[] { "shotgun", "spas12", "blunderbuss" }),
+            new KeyValuePair<string, string[]>("pistol", new[] { "pistol", "python", "revolver", "glock", "m92", "nailgun" }),
+            new KeyValuePair<string, string[]>("projectile", new[] { "bow", "crossbow", "speargun", "compound" })
+        };
+
+        // Resolved per-weapon detection settings, plus where they came from (for /ac-why and debug logs).
+        private class WeaponTuning
+        {
+            public float MaxAccuracy = 1f;
+            public int SampleCount = DefaultWeaponSampleCount;
+            public float SafeDistance = 1f;
+            public string Source = "unconfigured";
+            // Whether settings were found at all. Distinct from whether they penalise: the explosive
+            // family resolves successfully to MaxAccuracy = 1.0 on purpose.
+            public bool Resolved;
+            public bool AppliesPenalty { get { return Resolved && MaxAccuracy < 1f; } }
+        }
+
+        // Sorted, separator-insensitive token signature: "shotgun_pump" and "shotgun.pump" both
+        // become "pump.shotgun", and "bolt_rifle" matches "rifle.bolt".
+        private static string WeaponTokenSignature(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return string.Empty;
+            var parts = name.ToLowerInvariant().Split(WeaponNameSeparators, StringSplitOptions.RemoveEmptyEntries);
+            Array.Sort(parts, StringComparer.Ordinal);
+            return string.Join(".", parts);
+        }
+
+        internal static string ClassifyWeaponFamily(string weaponName)
+        {
+            if (string.IsNullOrEmpty(weaponName)) return "other";
+            string name = weaponName.ToLowerInvariant();
+            foreach (var entry in WeaponFamilyPatterns)
+                foreach (var fragment in entry.Value)
+                    if (name.Contains(fragment)) return entry.Key;
+            return "other";
+        }
+
+        // Carbon omits the category prefix from ShortPrefabName (e.g. "m39" instead of Oxide's
+        // "rifle.m39"), and modded servers report prefab names with underscores where the config uses
+        // dots. Match in order of decreasing certainty: exact, alias, last segment, token signature.
         private string ResolveWeaponConfigKey(Dictionary<string, object> weaponsCfg, string wName)
         {
             if (weaponsCfg == null || string.IsNullOrEmpty(wName)) return null;
             if (weaponsCfg.ContainsKey(wName)) return wName;
+
+            foreach (var key in weaponsCfg.Keys)
+                if (string.Equals(key, wName, StringComparison.OrdinalIgnoreCase)) return key;
+
+            string alias;
+            if (WeaponKeyAliases.TryGetValue(wName, out alias) && weaponsCfg.ContainsKey(alias))
+                return alias;
+
             foreach (var key in weaponsCfg.Keys)
             {
                 int dot = key.LastIndexOf('.');
                 if (dot >= 0 && string.Equals(key.Substring(dot + 1), wName, StringComparison.OrdinalIgnoreCase))
                     return key;
             }
+
+            string signature = WeaponTokenSignature(wName);
+            if (signature.Length > 0)
+                foreach (var key in weaponsCfg.Keys)
+                    if (WeaponTokenSignature(key) == signature) return key;
+
             return null;
+        }
+
+        // Every unconfigured weapon used to fall through to MaxAccuracy = 1.0, i.e. no checking at
+        // all. On a modded server that silently disabled detection for a third of all shots, so a
+        // family fallback now covers weapons the config does not name. Deliberately lenient — it
+        // exists to catch the blatant cases, and `ml-service/train.py` replaces these with values
+        // measured from the server's own telemetry.
+        private WeaponTuning GetWeaponTuning(string weaponName)
+        {
+            if (string.IsNullOrEmpty(weaponName)) return new WeaponTuning();
+
+            WeaponTuning cached;
+            if (_weaponTuningCache.TryGetValue(weaponName, out cached)) return cached;
+
+            var tuning = new WeaponTuning();
+            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
+            string key = ResolveWeaponConfigKey(weaponsCfg, weaponName);
+            var entry = key != null ? weaponsCfg[key] as Dictionary<string, object> : null;
+
+            if (entry != null && entry.ContainsKey("MaxAccuracy"))
+            {
+                try
+                {
+                    tuning.MaxAccuracy = Convert.ToSingle(entry["MaxAccuracy"]);
+                    tuning.SafeDistance = entry.ContainsKey("SafeDistance") ? Convert.ToSingle(entry["SafeDistance"]) : 1f;
+                    tuning.SampleCount = entry.ContainsKey("SampleCount") ? Convert.ToInt32(entry["SampleCount"]) : DefaultWeaponSampleCount;
+                    tuning.Source = key;
+                    tuning.Resolved = true;
+                }
+                catch (Exception ex)
+                {
+                    DebugLog($"Invalid weapon config for '{key}': {ex.Message}");
+                    tuning = new WeaponTuning();
+                }
+            }
+            else
+            {
+                var family = ClassifyWeaponFamily(weaponName);
+                var familyCfg = GetWeaponFamilyDefaults(family);
+                if (familyCfg != null)
+                {
+                    try
+                    {
+                        tuning.MaxAccuracy = Convert.ToSingle(familyCfg["MaxAccuracy"]);
+                        tuning.SampleCount = Convert.ToInt32(familyCfg["SampleCount"]);
+                        tuning.SafeDistance = Convert.ToSingle(familyCfg["SafeDistance"]);
+                        tuning.Source = "family:" + family;
+                        tuning.Resolved = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugLog($"Invalid weapon family default for '{family}': {ex.Message}");
+                        tuning = new WeaponTuning();
+                    }
+                }
+                if (!tuning.Resolved) NoteUnresolvedWeapon(weaponName, family);
+            }
+
+            if (tuning.SampleCount < 1) tuning.SampleCount = DefaultWeaponSampleCount;
+            if (tuning.SafeDistance <= 0f) tuning.SafeDistance = 1f;
+            _weaponTuningCache[weaponName] = tuning;
+            return tuning;
+        }
+
+        private Dictionary<string, object> GetWeaponFamilyDefaults(string family)
+        {
+            var cfg = Config["WeaponFallback"] as Dictionary<string, object>;
+            if (cfg == null) return null;
+            if (cfg.ContainsKey("Enabled"))
+            {
+                try { if (!Convert.ToBoolean(cfg["Enabled"])) return null; } catch { }
+            }
+            if (!cfg.ContainsKey("Families")) return null;
+            var families = cfg["Families"] as Dictionary<string, object>;
+            if (families == null || !families.ContainsKey(family)) return null;
+            return families[family] as Dictionary<string, object>;
+        }
+
+        // Told once per weapon name, so an operator finds out a weapon is unchecked instead of
+        // assuming it is covered.
+        private void NoteUnresolvedWeapon(string weaponName, string family)
+        {
+            if (!_reportedUnresolvedWeapons.Add(weaponName)) return;
+            PrintWarning($"[MogyAC] Weapon '{weaponName}' (family: {family}) has no config entry and no family fallback " +
+                         "- it will never be flagged. Add it to the Weapons config block, or enable WeaponFallback.");
+        }
+
+        private void InvalidateWeaponTuningCache()
+        {
+            _weaponTuningCache.Clear();
+        }
+
+        private float GetMaxHitDistance()
+        {
+            if (Config["MaxHitDistance"] == null) return DefaultMaxHitDistance;
+            try { return Convert.ToSingle(Config["MaxHitDistance"]); } catch { return DefaultMaxHitDistance; }
+        }
+
+        // Vector3.Distance(info.HitPositionWorld, info.PointStart) degenerates into a distance from
+        // the world origin when PointStart is unset, producing readings of 1000-2000 m on a 4k map.
+        // The weighted score is squared in the penalty term, so one such reading is enough to null a
+        // player's damage. The hit is real and still counts; only the distance is discarded.
+        private float SanitizeHitDistance(float distance, string weaponName)
+        {
+            float max = GetMaxHitDistance();
+            if (max <= 0f || distance <= max) return distance;
+            DebugLog($"Implausible hit distance {distance:F0}m for weapon={weaponName} (max {max:F0}m) - treating as unknown.");
+            return 0f;
+        }
+
+        // -- Aim kinematics ------------------------------------------------------------------
+        //
+        // Hit ratio says how often a player lands shots; it cannot say whether a human aimed them.
+        // These samples exist to describe the *approach to the target*: an assisted shot is
+        // preceded by a large angular step that stops dead and fires within a few tens of
+        // milliseconds, repeatably. A human decelerates onto the target and the settle time
+        // scatters. Collected here, analysed offline by ml-service.
+
+        private Dictionary<string, object> GetAimTrackingConfig()
+        {
+            return Config["AimTracking"] as Dictionary<string, object>;
+        }
+
+        private bool IsAimTrackingEnabled()
+        {
+            var cfg = GetAimTrackingConfig();
+            if (cfg == null || !cfg.ContainsKey("Enabled")) return true;
+            try { return Convert.ToBoolean(cfg["Enabled"]); } catch { return true; }
+        }
+
+        private float GetAimConfigFloat(string key, float fallback)
+        {
+            var cfg = GetAimTrackingConfig();
+            if (cfg == null || !cfg.ContainsKey(key)) return fallback;
+            try { return Convert.ToSingle(cfg[key]); } catch { return fallback; }
+        }
+
+        private void StartAimSampling()
+        {
+            _aimSampleTimer?.Destroy();
+            if (!IsAimTrackingEnabled()) return;
+            float hz = Mathf.Clamp(GetAimConfigFloat("SampleHz", 20f), 5f, 50f);
+            _aimSampleTimer = timer.Every(1f / hz, SampleAimTrails);
+        }
+
+        // Only players actually holding a ranged weapon are sampled, so the cost scales with the
+        // number of people in a fight rather than with the server population.
+        private void SampleAimTrails()
+        {
+            float now = UnityEngine.Time.realtimeSinceStartup;
+            float windowSeconds = Mathf.Clamp(GetAimConfigFloat("WindowMs", 400f), 100f, 2000f) / 1000f;
+
+            foreach (var player in BasePlayer.activePlayerList)
+            {
+                if (player == null || player.IsNpc || !player.userID.IsSteamId()) continue;
+                if (!(player.GetActiveItem()?.GetHeldEntity() is BaseProjectile)) continue;
+
+                Vector3 forward;
+                try { forward = player.eyes != null ? player.eyes.HeadForward() : Vector3.zero; }
+                catch { continue; }
+                if (forward == Vector3.zero) continue;
+
+                List<AimSample> trail;
+                if (!_aimTrails.TryGetValue(player.userID, out trail))
+                {
+                    trail = new List<AimSample>();
+                    _aimTrails[player.userID] = trail;
+                }
+                trail.Add(new AimSample { Realtime = now, Forward = forward });
+                // Keep only the analysis window; anything older cannot describe this shot.
+                int drop = 0;
+                while (drop < trail.Count && now - trail[drop].Realtime > windowSeconds) drop++;
+                if (drop > 0) trail.RemoveRange(0, drop);
+            }
+
+            if (_aimTrails.Count > 0 && _aimTrails.Count > BasePlayer.activePlayerList.Count * 2)
+                PruneAimTrails(now, windowSeconds);
+        }
+
+        private void PruneAimTrails(float now, float windowSeconds)
+        {
+            var stale = new List<ulong>();
+            foreach (var entry in _aimTrails)
+                if (entry.Value.Count == 0 || now - entry.Value[entry.Value.Count - 1].Realtime > windowSeconds * 4f)
+                    stale.Add(entry.Key);
+            foreach (var id in stale)
+            {
+                _aimTrails.Remove(id);
+                _lastShotAim.Remove(id);
+            }
+        }
+
+        // Returns (aimDeltaDeg, snapDeg, snapSettleMs); -1 for anything not measurable this shot.
+        private void MeasureAimKinematics(BasePlayer player, out float aimDeltaDeg, out float snapDeg,
+                                          out float snapSettleMs)
+        {
+            aimDeltaDeg = -1f;
+            snapDeg = -1f;
+            snapSettleMs = -1f;
+            if (!IsAimTrackingEnabled() || player == null) return;
+
+            Vector3 forward;
+            try { forward = player.eyes != null ? player.eyes.HeadForward() : Vector3.zero; }
+            catch { return; }
+            if (forward == Vector3.zero) return;
+
+            Vector3 previousShotAim;
+            if (_lastShotAim.TryGetValue(player.userID, out previousShotAim))
+                aimDeltaDeg = Vector3.Angle(previousShotAim, forward);
+            _lastShotAim[player.userID] = forward;
+
+            List<AimSample> trail;
+            if (!_aimTrails.TryGetValue(player.userID, out trail) || trail.Count < 3) return;
+
+            // Largest single step between consecutive samples, and how long ago it happened.
+            float now = UnityEngine.Time.realtimeSinceStartup;
+            float largest = 0f;
+            float largestAt = -1f;
+            for (int i = 1; i < trail.Count; i++)
+            {
+                float step = Vector3.Angle(trail[i - 1].Forward, trail[i].Forward);
+                if (step > largest)
+                {
+                    largest = step;
+                    largestAt = trail[i].Realtime;
+                }
+            }
+            snapDeg = largest;
+            if (largestAt >= 0f) snapSettleMs = Mathf.Max(0f, (now - largestAt) * 1000f);
         }
 
         private bool TrySetWeaponConfigValue(string weaponName, string fieldArg, string valueArg, out string canonicalField, out string normalizedValue)
@@ -2509,6 +2937,8 @@ namespace Oxide.Plugins
             if (!weaponCfg.ContainsKey("MaxAccuracy")) weaponCfg["MaxAccuracy"] = 0.40;
             if (!weaponCfg.ContainsKey("SampleCount")) weaponCfg["SampleCount"] = 40;
             if (!weaponCfg.ContainsKey("SafeDistance")) weaponCfg["SafeDistance"] = 25.0;
+            // Resolved settings are cached per prefab name; a config edit has to drop the cache.
+            InvalidateWeaponTuningCache();
         }
 
         private float GetLowestNerf(ulong userId)
@@ -2890,12 +3320,15 @@ namespace Oxide.Plugins
             float globalNerf = GetLowestNerf(player.userID);
             SendReply(player, Msg(player, "WhySummary", weaponName, eval.Accuracy, eval.SampleCount, eval.MaxAccuracy, eval.WeightedScore, eval.SuggestedNerf, globalNerf));
 
+            // Where the thresholds came from matters as much as the numbers: a family fallback is a
+            // guess, an entry in the Weapons block is a decision, and "unconfigured" means no checking.
+            if (string.IsNullOrEmpty(eval.TuningSource) || eval.TuningSource == "unconfigured")
+                SendReply(player, Msg(player, "WhyNoConfig", weaponName));
+            else
+                SendReply(player, Msg(player, "WhyTuningSource", weaponName, eval.TuningSource));
+
             if (!eval.HasEnoughData) { SendReply(player, Msg(player, "WhyReasonNoData")); return; }
             if (!eval.IsSuspicious) { SendReply(player, Msg(player, "WhyReasonBelowThreshold")); return; }
-
-            var weaponsCfg = Config["Weapons"] as Dictionary<string, object>;
-            if (ResolveWeaponConfigKey(weaponsCfg, weaponName) == null)
-                SendReply(player, Msg(player, "WhyNoConfig", weaponName));
         }
 
         [ChatCommand("ac-ml-feedback")]
@@ -3290,6 +3723,19 @@ namespace Oxide.Plugins
                 }
                 string old = Config["MissExpirySeconds"] != null ? Config["MissExpirySeconds"].ToString() : "?";
                 Config["MissExpirySeconds"] = (double)val;
+                SaveConfig();
+                SendReply(player, Msg(player, "ConfigTuneUpdated", paramName, val, old));
+            }
+            else if (paramName.Equals("MaxHitDistance", StringComparison.OrdinalIgnoreCase))
+            {
+                float val;
+                if (!float.TryParse(valueStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out val) || val < 0)
+                {
+                    SendReply(player, Msg(player, "ConfigTuneInvalidValue", paramName, valueStr));
+                    return;
+                }
+                string old = Config["MaxHitDistance"] != null ? Config["MaxHitDistance"].ToString() : "?";
+                Config["MaxHitDistance"] = (double)val;
                 SaveConfig();
                 SendReply(player, Msg(player, "ConfigTuneUpdated", paramName, val, old));
             }

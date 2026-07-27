@@ -32,6 +32,7 @@
   "WhyUsage": "Usage: /ac-why [weaponShortName|active]",
   "WhyNoWeaponData": "No tracked data for weapon: {0}.",
   "WhyNoConfig": "No config found for weapon: {0}. Add it with /ac-weapon.",
+  "WhyTuningSource": "Thresholds for {0} come from: {1}",
   "WhySummary": "Weapon: {0} | Acc: {1:P1} | Shots: {2} | Max: {3:P1} | Weighted: {4:F2} | SuggestedNerf: {5:P0} | GlobalNerf: {6:P0}",
   "WhyReasonNoData": "Reason: not enough samples yet (minimum 10).",
   "WhyReasonBelowThreshold": "Reason: accuracy is within configured threshold.",

@@ -28,6 +28,77 @@ This document defines config keys, types, defaults, and constraints.
 - Type: `float`
 - Typical range: `10 - 100`
 - Meaning: Distance baseline used by weighted scoring.
+- Note: the weighted score is **squared** in the penalty term, so a value that ordinary
+  engagements exceed multiplies the penalty for normal play. `ml-service/train.py` derives it
+  from the p90 of observed hit distances, bounded so a maximum-range hit cannot amplify by
+  more than 3x.
+
+## Weapon key matching
+
+The config is keyed by Rust item shortnames (`rifle.ak`, `smg.2`), but the server reports prefab
+short names (`ak47u`, `smg`), and Carbon drops the category prefix entirely. A weapon is matched
+in this order:
+
+1. exact key,
+2. case-insensitive exact key,
+3. built-in alias (`smg` -> `smg.2`, `semi_auto_rifle` -> `rifle.semiauto`, ...),
+4. the segment after the last dot (`m39` -> `rifle.m39`),
+5. separator- and order-insensitive token signature (`bolt_rifle` -> `rifle.bolt`,
+   `shotgun_pump` -> `shotgun.pump`).
+
+If none match, `WeaponFallback` applies. A weapon that reaches neither is never flagged, and the
+plugin logs a one-time warning naming it.
+
+## `WeaponFallback`
+
+- Type: `object`
+- Purpose: detection settings for weapons the `Weapons` block does not name — modded, renamed, or
+  newly added ones. Without it those weapons are exempt from checking entirely.
+
+Fields:
+- `Enabled` (`bool`, default `true`) — set `false` to restore the old "unknown weapon is never
+  checked" behaviour.
+- `Families` (`object`) — one entry per family, each with the same `MaxAccuracy` / `SampleCount` /
+  `SafeDistance` fields as a weapon entry. Families: `auto_rifle`, `smg`, `lmg`, `semi_rifle`,
+  `sniper`, `shotgun`, `pistol`, `projectile`, `explosive`.
+
+A weapon's family is inferred from name fragments (`m249`/`hmlmg`/`minigun` -> `lmg`, `bolt`/`l96`
+-> `sniper`, and so on). `explosive` ships with `MaxAccuracy = 1.0` on purpose: a rocket registers
+a hit on virtually every shot, so hit ratio carries no signal there.
+
+The shipped family thresholds are deliberately lenient cross-server guesses meant to catch blatant
+outliers, not to fine-tune. Run `ml-service/train.py` on your own event logs to replace them with
+measured values — see `docs/ML_TRAINING.md`.
+
+## `AimTracking`
+
+- Type: `object`
+- Purpose: records how the player's view arrived on target before each shot. Hit ratio describes the
+  result of aiming; this describes the approach, which is what separates assisted aim from a good
+  player. Feeds `AimDeltaDeg` / `SnapDeg` / `SnapSettleMs` on every `shot` telemetry event.
+
+Fields:
+- `Enabled` (`bool`, default `true`) — set `false` to stop sampling entirely; shot events then
+  report `-1` for all three fields.
+- `SampleHz` (`float`, default `20`, range `5..50`) — view-direction sampling rate. A snap completes
+  well inside 100 ms, so 20 Hz resolves it. Only players holding a ranged weapon are sampled.
+- `WindowMs` (`float`, default `400`, range `100..2000`) — how much history each shot is analysed
+  against.
+
+The fields are collected for offline analysis only — the plugin does not act on them. See
+`docs/ML_TRAINING.md`.
+
+## `MaxHitDistance`
+
+- Type: `float`
+- Default: `500.0`
+- Meaning: hits reporting a distance above this have the distance discarded (the hit still counts).
+- Why: `Vector3.Distance(info.HitPositionWorld, info.PointStart)` degenerates into a distance from
+  the world origin when `PointStart` is unset, producing 1000-2000 m readings on a 4k map. Since
+  the weighted score is squared in the penalty, one such reading can null a player's damage.
+- Constraint: `>= 0`. `0` disables the check.
+- Note: the event log keeps the raw measurement either way, so the ML trainer can still report how
+  often the reading breaks.
 
 ## `DefaultLanguage`
 
@@ -81,7 +152,10 @@ Fields:
 Fields:
 - `Enabled` (`bool`, default `true`) — feature toggle.
 - `Accepted` (`bool`, default `false`) — **consent gate**. No data leaves the server until this is `true`.
-- `DiscordWebhookUrl` (`string`, default `""`) — Discord webhook the weekly summary is delivered to.
+- `DiscordWebhookUrl` (`string`) — Discord webhook the weekly summary is delivered to. Empty by default
+  in source/`.cs` builds (the source holds a `__WEEKLY_WEBHOOK__` sentinel); the official release DLL is
+  built with the developer's webhook injected (see `docs/DLL_BUILD.md`). Override it with your own, or
+  leave `Accepted = false` to send nothing.
 - `IntervalDays` (`int`, default `7`, min `1`) — minimum days between reports.
 - `IncludeKDA` (`bool`, default `true`) — include aggregate kill/death totals.
 - `IncludeLagswitch` (`bool`, default `true`) — include aggregate lagswitch incident totals.
