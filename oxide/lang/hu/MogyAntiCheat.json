@@ -12,6 +12,7 @@
   "DailyNoUrl": "[MogyAC] Nincs beállítva napi riport webhook URL (DailyReport.DiscordWebhookUrl).",
   "DailySentNow": "[MogyAC] Napi riport elküldve a beállított webhookra.",
   "HelpDailyNow": "/ac-daily-now - Napi gyanú-riport azonnali küldése a webhookodra.",
+  "HelpUi": "/ac-ui [close] - Játékon belüli admin panel megnyitása (rangsorolt lista).",
   "StatsHeader": "=== MogyAC STAT: {0} ===",
   "GlobalDamageLabel": "GLOBAL SEBZÉS",
   "WeaponLine": "{0}: {1:P1} ({2} lövés)",

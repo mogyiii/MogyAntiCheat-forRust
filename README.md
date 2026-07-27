@@ -155,6 +155,7 @@ To customize text:
 - `/ac-why [weaponShortName|active]` - Explain why nerf is or is not applied for a weapon.
 - `/ac-weekly-now` - Send the anonymized weekly telemetry report immediately (for testing; requires opt-in).
 - `/ac-daily-now` - Send the daily suspicion digest to your own Discord webhook immediately (for testing).
+- `/ac-ui [close]` - Open the in-game admin panel: tracked players ranked by suspicion, paginated.
 - `/ac-help` - Show available admin command list.
 
 ## Anonymous Weekly Report (opt-in)

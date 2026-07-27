@@ -85,6 +85,9 @@ Persistence:
 - `MogyAntiCheat_Salt.json` — per-server random salt for SteamID hashing (never transmitted).
 - `MogyAntiCheat_WeeklyReport.json` — last weekly-report send timestamp.
 - `MogyAntiCheat_DailyReport.json` — last daily-report send timestamp.
+- `MogyAntiCheat_PeriodCounters.json` — per-player counters for the current reporting period
+  (shots, hits, kills, deaths, suspicion flags, penalties, nulled hits) plus `periodStartMs`.
+  Reset when a scheduled daily report is sent; saved on `OnServerSave` and `Unload`.
 - Pending shots, suspicion cache, ping stats, and damage contributors are runtime-only.
 
 Runtime compatibility:
@@ -312,7 +315,12 @@ covered on purpose, and no warning is emitted. `/ac-why` reports which of the th
   - Admin-only.
   - Sends the daily suspicion digest to `DailyReport.DiscordWebhookUrl` immediately.
   - Works while `DailyReport.Enabled` is `false` (so the webhook can be tested before scheduling),
-    and does not advance the schedule.
+    and does not advance the schedule or reset the period counters.
+- `/ac-ui [close]`
+  - Admin-only.
+  - Opens a CUI panel listing tracked players ranked by the same suspicion score the daily report
+    uses, paginated. Read-only: acting on a player still goes through the existing commands.
+  - The panel is destroyed before every redraw, on disconnect, and on unload for all viewers.
 - `/ac-dashboard`
   - Admin-only.
   - Prints a live tabular view of all tracked players: name, current nerf, ping average, lagswitch incident count, K/D/A, and manual override status.

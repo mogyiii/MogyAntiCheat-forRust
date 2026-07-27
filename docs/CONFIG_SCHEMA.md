@@ -108,9 +108,21 @@ Each listed player gets a 0-1 suspicion score, used only to order the list:
 - **25%** — the damage reduction the plugin already applied.
 - **15%** — lagswitch incidents within the reporting period.
 
-Note on the period: accuracy comes from each weapon's **rolling window** (the last `SampleCount`
-shots), which is current state rather than a total for the period — the report labels it as such.
-Lagswitch incidents are timestamped and genuinely limited to the interval.
+### What is genuinely per-period
+
+The plugin keeps `MogyAntiCheat_PeriodCounters.json`: shots, hits, kills, deaths, suspicion flags
+raised, damage-reduced hits and nulled hits per player, accumulated since the last report and reset
+when one is sent. They survive a restart, so a mid-period reboot does not lose the day.
+
+The report header and the per-row `Nsh/Nh`, `flags=`, `nulled=`, `reduced=` and `K/D` figures all
+come from those counters, as do lagswitch incidents (timestamped). Only two things are *not*
+per-period, and are labelled accordingly: the `acc=`/`n=` figures come from each weapon's rolling
+window — current state, and the number the plugin actually thresholds against — and the `dmg=`
+column is the damage multiplier in effect right now.
+
+Players with no activity in the period are left out entirely, however suspicious their stale
+rolling window looks. `/ac-daily-now` does not reset the counters, so testing the webhook never
+costs you the day.
 
 ## `AimTracking`
 

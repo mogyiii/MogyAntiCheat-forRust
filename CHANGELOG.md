@@ -49,6 +49,17 @@ The format is based on Keep a Changelog.
   raw measurement is still written to the event log for diagnosis.
 
 ### Added (plugin)
+- **In-game admin panel (`/ac-ui`).** A CUI panel listing tracked players ranked by the same
+  suspicion score the daily report uses, paginated, with accuracy coloured against that weapon's own
+  threshold. Read-only by design: acting on a player still goes through the existing commands, which
+  keep their audit trail. The panel is destroyed before every redraw, on disconnect, and on unload
+  for every viewer — a leaked `CursorEnabled` panel would trap the player's mouse.
+- **Per-period counters** (`MogyAntiCheat_PeriodCounters.json`): shots, hits, kills, deaths,
+  suspicion flags raised, damage-reduced hits and nulled hits per player, accumulated since the last
+  report and reset when a scheduled one is sent. Persisted, so a mid-period restart keeps the day.
+  This makes the daily digest genuinely about the period rather than about the state of the rolling
+  windows; players with no activity in the period are dropped from it entirely, however suspicious
+  their stale window looks. `/ac-daily-now` does not reset them, so testing the webhook is free.
 - **`DailyReport` config block — operator-facing suspicion digest.** Sends a ranked list of the
   most worth-checking players to the server owner's *own* Discord webhook on a configurable
   interval (default 24h, off until a URL is set). Distinct from `WeeklyReport`, which is the opt-in

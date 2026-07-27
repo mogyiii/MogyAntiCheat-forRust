@@ -10,6 +10,7 @@ using Newtonsoft.Json.Linq;
 using Oxide.Core;
 using Oxide.Core.Configuration;
 using Oxide.Core.Libraries;
+using Oxide.Game.Rust.Cui;
 using UnityEngine;
 
 namespace Oxide.Plugins
@@ -41,6 +42,13 @@ namespace Oxide.Plugins
         private const string SaltDataFileName = "MogyAntiCheat_Salt";
         private const string WeeklyReportDataFileName = "MogyAntiCheat_WeeklyReport";
         private const string DailyReportDataFileName = "MogyAntiCheat_DailyReport";
+        private const string PeriodCountersDataFileName = "MogyAntiCheat_PeriodCounters";
+
+        // --- In-game panel (CUI) ---
+        // One root element name, destroyed before every redraw and on disconnect/unload. A stray
+        // panel with CursorEnabled locks the player's mouse, so nothing here may leak.
+        private const string UiRoot = "mogyac.ui.root";
+        private const int UiRowsPerPage = 11;
 
         private DynamicConfigFile _storedData;
         private DynamicConfigFile _kdaData;
@@ -67,6 +75,13 @@ namespace Oxide.Plugins
         private Timer _dailyReportTimer;
         private DynamicConfigFile _weeklyReportData;
         private DynamicConfigFile _dailyReportData;
+        private DynamicConfigFile _periodCountersData;
+        // Genuinely per-period tallies, as opposed to the rolling window in _playerStats. Reset when
+        // a scheduled daily report goes out, and persisted so a restart mid-period keeps the day.
+        private readonly Dictionary<ulong, PeriodCounters> _periodCounters = new Dictionary<ulong, PeriodCounters>();
+        private long _periodStartMs;
+        // Which page each viewer is on. Presence in this map means the panel is open for them.
+        private readonly Dictionary<ulong, int> _uiPage = new Dictionary<ulong, int>();
         private string _telemetrySalt = string.Empty;
         private bool _webhookRequestInFlight;
         private float _webhookWindowStart;
@@ -97,6 +112,7 @@ namespace Oxide.Plugins
             ["DailyNoUrl"] = "[MogyAC] No daily report webhook URL is configured (DailyReport.DiscordWebhookUrl).",
             ["DailySentNow"] = "[MogyAC] Daily report sent to the configured webhook.",
             ["HelpDailyNow"] = "/ac-daily-now - Send the daily suspicion report to your webhook now.",
+            ["HelpUi"] = "/ac-ui [close] - Open the in-game admin panel (ranked player list).",
             ["StatsHeader"] = "=== MogyAC STATS: {0} ===",
             ["GlobalDamageLabel"] = "GLOBAL DAMAGE",
             ["WeaponLine"] = "{0}: {1:P1} ({2} shots)",
@@ -201,6 +217,7 @@ namespace Oxide.Plugins
             ["DailyNoUrl"] = "[MogyAC] Nincs beállítva napi riport webhook URL (DailyReport.DiscordWebhookUrl).",
             ["DailySentNow"] = "[MogyAC] Napi riport elküldve a beállított webhookra.",
             ["HelpDailyNow"] = "/ac-daily-now - Napi gyanú-riport azonnali küldése a webhookodra.",
+            ["HelpUi"] = "/ac-ui [close] - Játékon belüli admin panel megnyitása (rangsorolt lista).",
             ["StatsHeader"] = "=== MogyAC STAT: {0} ===",
             ["GlobalDamageLabel"] = "GLOBAL SEBZÉS",
             ["WeaponLine"] = "{0}: {1:P1} ({2} lövés)",
@@ -485,6 +502,29 @@ namespace Oxide.Plugins
             public Vector3 Forward;
         }
 
+        // What a player actually did during the current reporting period. The rolling window in
+        // WeaponData answers "how are they shooting right now"; this answers "what happened today",
+        // which is the question a daily digest is really asking.
+        private class PeriodCounters
+        {
+            public int Shots;
+            public int Hits;
+            public int Kills;
+            public int Deaths;
+            public int SuspicionEvents;   // times the player crossed into suspicion on some weapon
+            public int PenaltyEvents;     // hits that had their damage scaled down
+            public int ZeroDamageEvents;  // hits nulled outright
+
+            public bool IsEmpty
+            {
+                get
+                {
+                    return Shots == 0 && Hits == 0 && Kills == 0 && Deaths == 0
+                        && SuspicionEvents == 0 && PenaltyEvents == 0 && ZeroDamageEvents == 0;
+                }
+            }
+        }
+
         private class MLSuggestionCacheEntry
         {
             public long FetchedAtMs;
@@ -540,9 +580,11 @@ namespace Oxide.Plugins
             _kdaData = Interface.Oxide.DataFileSystem.GetFile("MogyAntiCheat_KDA");
             _weeklyReportData = Interface.Oxide.DataFileSystem.GetFile(WeeklyReportDataFileName);
             _dailyReportData = Interface.Oxide.DataFileSystem.GetFile(DailyReportDataFileName);
+            _periodCountersData = Interface.Oxide.DataFileSystem.GetFile(PeriodCountersDataFileName);
             _debugLogPath = Path.Combine(_runtimeDataDirectory, DebugLogFileName);
             LoadStats();
             LoadKDAStats();
+            LoadPeriodCounters();
             EnsureConfigDefaults();
             EnsureTelemetrySalt();
             _webhookWindowStart = UnityEngine.Time.realtimeSinceStartup;
@@ -562,6 +604,7 @@ namespace Oxide.Plugins
         {
             SaveStats();
             SaveKDAStats();
+            SavePeriodCounters();
         }
 
         void Unload()
@@ -573,9 +616,12 @@ namespace Oxide.Plugins
             _aimSampleTimer?.Destroy();
             _aimTrails.Clear();
             _lastShotAim.Clear();
+            // Leaving a CursorEnabled panel behind on unload would trap every viewer's mouse.
+            CloseAllUi();
             FlushTelemetryQueue();
             SaveStats();
             SaveKDAStats();
+            SavePeriodCounters();
         }
 
         private bool HasAccess(BasePlayer player, string permissionName)
@@ -1844,6 +1890,310 @@ namespace Oxide.Plugins
 
         // Runs hourly; sends the report only when at least IntervalDays have passed since the last send.
         // ====================================================================================
+        // In-game admin panel (CUI)
+        // ====================================================================================
+        //
+        // Shows the same ranking the daily report sends, live and sorted, so an admin can see who
+        // to watch without reading chat output. Read-only by design: acting on a player still goes
+        // through the existing commands, which keep their audit trail.
+        //
+        // Every draw destroys the previous panel first, and the panel is destroyed on disconnect
+        // and on unload for every viewer — a leaked CursorEnabled panel would trap the mouse.
+
+        private void CloseUi(BasePlayer player)
+        {
+            if (player == null) return;
+            CuiHelper.DestroyUi(player, UiRoot);
+            _uiPage.Remove(player.userID);
+        }
+
+        private void CloseAllUi()
+        {
+            foreach (var playerId in new List<ulong>(_uiPage.Keys))
+            {
+                var player = BasePlayer.FindByID(playerId);
+                if (player != null) CuiHelper.DestroyUi(player, UiRoot);
+            }
+            _uiPage.Clear();
+        }
+
+        private static string UiAccuracyColour(float accuracy, float maxAccuracy)
+        {
+            if (maxAccuracy >= 1f) return "0.75 0.75 0.72 1";     // no threshold to be over
+            if (accuracy > maxAccuracy) return "0.82 0.23 0.23 1";
+            if (accuracy > maxAccuracy * 0.85f) return "0.98 0.70 0.10 1";
+            return "0.55 0.78 0.55 1";
+        }
+
+        private void DrawUi(BasePlayer player, int page)
+        {
+            if (player == null) return;
+
+            var rows = BuildDailyReportRows(_periodStartMs > 0 ? _periodStartMs : 0L);
+            int totalPages = Math.Max(1, (rows.Count + UiRowsPerPage - 1) / UiRowsPerPage);
+            page = Mathf.Clamp(page, 0, totalPages - 1);
+            _uiPage[player.userID] = page;
+
+            CuiHelper.DestroyUi(player, UiRoot);
+            var container = new CuiElementContainer();
+
+            string root = container.Add(new CuiPanel
+            {
+                Image = { Color = "0.09 0.09 0.09 0.96" },
+                RectTransform = { AnchorMin = "0.14 0.14", AnchorMax = "0.86 0.86" },
+                CursorEnabled = true
+            }, "Overlay", UiRoot);
+
+            container.Add(new CuiLabel
+            {
+                Text =
+                {
+                    Text = $"MogyAntiCheat — {rows.Count} tracked players (page {page + 1}/{totalPages})",
+                    FontSize = 15,
+                    Align = TextAnchor.MiddleLeft,
+                    Color = "0.95 0.95 0.93 1"
+                },
+                RectTransform = { AnchorMin = "0.02 0.925", AnchorMax = "0.75 0.985" }
+            }, root);
+
+            container.Add(new CuiButton
+            {
+                Button = { Color = "0.55 0.18 0.18 1", Command = "mogyac.ui close" },
+                Text = { Text = "CLOSE", FontSize = 12, Align = TextAnchor.MiddleCenter,
+                         Color = "1 1 1 1" },
+                RectTransform = { AnchorMin = "0.90 0.93", AnchorMax = "0.98 0.985" }
+            }, root);
+
+            // Column header. Kept in one label so the columns cannot drift apart from the rows.
+            container.Add(new CuiLabel
+            {
+                Text =
+                {
+                    Text = "SCORE  PLAYER                      WEAPON        ACC    N    DMG   FLAGS  LAG",
+                    FontSize = 11,
+                    Align = TextAnchor.MiddleLeft,
+                    Color = "0.62 0.62 0.60 1",
+                    Font = "robotocondensed-regular.ttf"
+                },
+                RectTransform = { AnchorMin = "0.02 0.86", AnchorMax = "0.98 0.915" }
+            }, root);
+
+            float rowTop = 0.855f;
+            float rowHeight = 0.068f;
+            int start = page * UiRowsPerPage;
+
+            for (int i = 0; i < UiRowsPerPage; i++)
+            {
+                int index = start + i;
+                if (index >= rows.Count) break;
+                var row = rows[index];
+
+                float top = rowTop - i * rowHeight;
+                float bottom = top - rowHeight + 0.008f;
+
+                if (i % 2 == 0)
+                {
+                    container.Add(new CuiPanel
+                    {
+                        Image = { Color = "1 1 1 0.03" },
+                        RectTransform = { AnchorMin = $"0.02 {bottom:0.###}", AnchorMax = $"0.98 {top:0.###}" }
+                    }, root);
+                }
+
+                string name = string.IsNullOrEmpty(row.Name) ? row.PlayerId.ToString() : row.Name;
+                if (name.Length > 24) name = name.Substring(0, 23) + "…";
+
+                string dmg = row.Nerf < 1f ? $"{row.Nerf * 100f:0}%" : "-";
+                string flags = row.SuspicionEvents > 0 ? row.SuspicionEvents.ToString() : "-";
+                string lag = row.LagswitchIncidents > 0 ? row.LagswitchIncidents.ToString() : "-";
+                string text = string.Format("{0,-6:0.00} {1,-26} {2,-13} {3,-6} {4,-4} {5,-5} {6,-6} {7}",
+                    row.Score, name, row.WorstWeapon ?? "-", $"{row.WorstAccuracy * 100f:0}%",
+                    row.Samples, dmg, flags, lag);
+
+                container.Add(new CuiLabel
+                {
+                    Text =
+                    {
+                        Text = text,
+                        FontSize = 12,
+                        Align = TextAnchor.MiddleLeft,
+                        Color = UiAccuracyColour(row.WorstAccuracy, row.WorstMaxAccuracy),
+                        Font = "robotocondensed-regular.ttf"
+                    },
+                    RectTransform = { AnchorMin = $"0.025 {bottom:0.###}", AnchorMax = $"0.975 {top:0.###}" }
+                }, root);
+            }
+
+            if (rows.Count == 0)
+            {
+                container.Add(new CuiLabel
+                {
+                    Text = { Text = "No tracked players yet.", FontSize = 13,
+                             Align = TextAnchor.MiddleCenter, Color = "0.7 0.7 0.68 1" },
+                    RectTransform = { AnchorMin = "0.02 0.4", AnchorMax = "0.98 0.6" }
+                }, root);
+            }
+
+            container.Add(new CuiButton
+            {
+                Button = { Color = page > 0 ? "0.22 0.22 0.22 1" : "0.15 0.15 0.15 1",
+                           Command = page > 0 ? $"mogyac.ui page {page - 1}" : "" },
+                Text = { Text = "< PREV", FontSize = 12, Align = TextAnchor.MiddleCenter,
+                         Color = page > 0 ? "0.9 0.9 0.9 1" : "0.4 0.4 0.4 1" },
+                RectTransform = { AnchorMin = "0.02 0.02", AnchorMax = "0.13 0.075" }
+            }, root);
+
+            container.Add(new CuiButton
+            {
+                Button = { Color = page < totalPages - 1 ? "0.22 0.22 0.22 1" : "0.15 0.15 0.15 1",
+                           Command = page < totalPages - 1 ? $"mogyac.ui page {page + 1}" : "" },
+                Text = { Text = "NEXT >", FontSize = 12, Align = TextAnchor.MiddleCenter,
+                         Color = page < totalPages - 1 ? "0.9 0.9 0.9 1" : "0.4 0.4 0.4 1" },
+                RectTransform = { AnchorMin = "0.14 0.02", AnchorMax = "0.25 0.075" }
+            }, root);
+
+            container.Add(new CuiButton
+            {
+                Button = { Color = "0.22 0.30 0.22 1", Command = $"mogyac.ui page {page}" },
+                Text = { Text = "REFRESH", FontSize = 12, Align = TextAnchor.MiddleCenter,
+                         Color = "0.9 0.9 0.9 1" },
+                RectTransform = { AnchorMin = "0.26 0.02", AnchorMax = "0.38 0.075" }
+            }, root);
+
+            container.Add(new CuiLabel
+            {
+                Text =
+                {
+                    Text = "Score ranks who to look at, it is not proof. Use /ac-check for detail.",
+                    FontSize = 11,
+                    Align = TextAnchor.MiddleRight,
+                    Color = "0.55 0.55 0.53 1"
+                },
+                RectTransform = { AnchorMin = "0.40 0.02", AnchorMax = "0.98 0.075" }
+            }, root);
+
+            CuiHelper.AddUi(player, container);
+        }
+
+        [ChatCommand("ac-ui")]
+        void CmdAcUi(BasePlayer player, string command, string[] args)
+        {
+            if (!HasAccess(player, PermissionAdmin)) { SendReply(player, Msg(player, "NoPermission")); return; }
+
+            if (args.Length > 0 && args[0].Equals("close", StringComparison.OrdinalIgnoreCase))
+            {
+                CloseUi(player);
+                return;
+            }
+            DrawUi(player, 0);
+        }
+
+        [ConsoleCommand("mogyac.ui")]
+        void CcmdAcUi(ConsoleSystem.Arg arg)
+        {
+            var player = arg?.Player();
+            if (player == null) return;
+            // Console commands can be typed by anyone, so the permission check is repeated here
+            // rather than trusted from whoever drew the button.
+            if (!HasAccess(player, PermissionAdmin)) return;
+
+            string action = arg.GetString(0, "");
+            if (action == "close") { CloseUi(player); return; }
+            if (action == "page")
+            {
+                DrawUi(player, arg.GetInt(1, 0));
+                return;
+            }
+            DrawUi(player, 0);
+        }
+
+        // ====================================================================================
+        // Per-period counters
+        // ====================================================================================
+
+        private PeriodCounters GetOrCreatePeriodCounters(ulong playerId)
+        {
+            PeriodCounters counters;
+            if (!_periodCounters.TryGetValue(playerId, out counters))
+            {
+                counters = new PeriodCounters();
+                _periodCounters[playerId] = counters;
+            }
+            return counters;
+        }
+
+        private void SavePeriodCounters()
+        {
+            try
+            {
+                var data = new Dictionary<string, Dictionary<string, long>>();
+                foreach (var entry in _periodCounters)
+                {
+                    if (entry.Value.IsEmpty) continue;
+                    data[entry.Key.ToString()] = new Dictionary<string, long>
+                    {
+                        ["Shots"] = entry.Value.Shots,
+                        ["Hits"] = entry.Value.Hits,
+                        ["Kills"] = entry.Value.Kills,
+                        ["Deaths"] = entry.Value.Deaths,
+                        ["SuspicionEvents"] = entry.Value.SuspicionEvents,
+                        ["PenaltyEvents"] = entry.Value.PenaltyEvents,
+                        ["ZeroDamageEvents"] = entry.Value.ZeroDamageEvents
+                    };
+                }
+                data["__meta__"] = new Dictionary<string, long> { ["periodStartMs"] = _periodStartMs };
+                _periodCountersData.WriteObject(data);
+            }
+            catch (Exception ex) { DebugLog($"Period counter save failed: {ex.Message}"); }
+        }
+
+        private void LoadPeriodCounters()
+        {
+            _periodCounters.Clear();
+            _periodStartMs = 0;
+            try
+            {
+                var data = _periodCountersData.ReadObject<Dictionary<string, Dictionary<string, long>>>();
+                if (data == null) return;
+
+                foreach (var entry in data)
+                {
+                    if (entry.Key == "__meta__")
+                    {
+                        long start;
+                        if (entry.Value != null && entry.Value.TryGetValue("periodStartMs", out start))
+                            _periodStartMs = start;
+                        continue;
+                    }
+
+                    ulong playerId;
+                    if (!ulong.TryParse(entry.Key, out playerId) || entry.Value == null) continue;
+
+                    var counters = new PeriodCounters();
+                    long value;
+                    if (entry.Value.TryGetValue("Shots", out value)) counters.Shots = (int)value;
+                    if (entry.Value.TryGetValue("Hits", out value)) counters.Hits = (int)value;
+                    if (entry.Value.TryGetValue("Kills", out value)) counters.Kills = (int)value;
+                    if (entry.Value.TryGetValue("Deaths", out value)) counters.Deaths = (int)value;
+                    if (entry.Value.TryGetValue("SuspicionEvents", out value)) counters.SuspicionEvents = (int)value;
+                    if (entry.Value.TryGetValue("PenaltyEvents", out value)) counters.PenaltyEvents = (int)value;
+                    if (entry.Value.TryGetValue("ZeroDamageEvents", out value)) counters.ZeroDamageEvents = (int)value;
+                    _periodCounters[playerId] = counters;
+                }
+            }
+            catch (Exception ex) { DebugLog($"Period counter load failed: {ex.Message}"); }
+
+            if (_periodStartMs <= 0) _periodStartMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        }
+
+        private void ResetPeriodCounters()
+        {
+            _periodCounters.Clear();
+            _periodStartMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            SavePeriodCounters();
+        }
+
+        // ====================================================================================
         // Daily operator report
         // ====================================================================================
 
@@ -1887,12 +2237,21 @@ namespace Oxide.Plugins
             public string Name;
             public string WorstWeapon;
             public float WorstAccuracy;
+            // That weapon's own threshold, so the panel can colour accuracy against the right bar.
+            public float WorstMaxAccuracy = 1f;
             public int Samples;
             public float Nerf = 1f;
             public int LagswitchIncidents;
+            public float Score;
+            // Genuinely for the reporting period, from _periodCounters.
+            public int PeriodShots;
+            public int PeriodHits;
             public int Kills;
             public int Deaths;
-            public float Score;
+            public int SuspicionEvents;
+            public int PenaltyEvents;
+            public int ZeroDamageEvents;
+            public bool ActiveThisPeriod { get { return PeriodShots > 0 || PeriodHits > 0; } }
         }
 
         // Wilson score lower bound of a hit ratio at ~95% confidence.
@@ -1980,13 +2339,19 @@ namespace Oxide.Plugins
                     for (int i = 0; i < incidents.Count; i++)
                         if (incidents[i].TimestampMs >= sinceMs) row.LagswitchIncidents++;
 
-                PlayerKDAStats kda;
-                if (_playerKDAStats.TryGetValue(playerEntry.Key, out kda) && kda != null)
+                PeriodCounters counters;
+                if (_periodCounters.TryGetValue(playerEntry.Key, out counters) && counters != null)
                 {
-                    row.Kills = kda.Kills;
-                    row.Deaths = kda.Deaths;
+                    row.PeriodShots = counters.Shots;
+                    row.PeriodHits = counters.Hits;
+                    row.Kills = counters.Kills;
+                    row.Deaths = counters.Deaths;
+                    row.SuspicionEvents = counters.SuspicionEvents;
+                    row.PenaltyEvents = counters.PenaltyEvents;
+                    row.ZeroDamageEvents = counters.ZeroDamageEvents;
                 }
 
+                row.WorstMaxAccuracy = worstMaxAccuracy;
                 row.Score = ComputeSuspicionScore(row, worstMaxAccuracy);
                 row.Name = ResolvePlayerName(playerEntry.Key);
                 rows.Add(row);
@@ -2020,32 +2385,51 @@ namespace Oxide.Plugins
             bool includeNames = GetDailyReportBool("IncludeNames", true);
             bool includeIds = GetDailyReportBool("IncludeSteamIds", true);
 
-            long sinceMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - (long)hours * 3600000L;
+            // The period is whatever has actually elapsed since the counters were last reset, not a
+            // nominal 24 hours — a restart or a late send would otherwise mislabel the window.
+            long sinceMs = _periodStartMs > 0
+                ? _periodStartMs
+                : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - (long)hours * 3600000L;
             var rows = BuildDailyReportRows(sinceMs);
-            var flagged = rows.FindAll(r => r.Score >= minScore);
+            // Someone who did not play this period has nothing to report, however their stale
+            // rolling window reads.
+            var flagged = rows.FindAll(r => r.Score >= minScore && r.ActiveThisPeriod);
 
-            int totalShots = 0, totalHits = 0, nerfedPlayers = 0;
-            foreach (var playerEntry in _playerStats)
+            // Period totals come from the counters, so these really are "what happened since the
+            // last report" rather than the state of the rolling windows.
+            int periodShots = 0, periodHits = 0, periodKills = 0;
+            int periodSuspicion = 0, periodPenalties = 0, periodZeroDamage = 0, activePlayers = 0;
+            foreach (var entry in _periodCounters)
             {
-                foreach (var weaponEntry in playerEntry.Value)
-                {
-                    var history = weaponEntry.Value?.History;
-                    if (history == null) continue;
-                    totalShots += history.Count;
-                    for (int i = 0; i < history.Count; i++) if (history[i].IsHit) totalHits++;
-                }
+                var c = entry.Value;
+                if (c == null) continue;
+                periodShots += c.Shots;
+                periodHits += c.Hits;
+                periodKills += c.Kills;
+                periodSuspicion += c.SuspicionEvents;
+                periodPenalties += c.PenaltyEvents;
+                periodZeroDamage += c.ZeroDamageEvents;
+                if (c.Shots > 0 || c.Hits > 0) activePlayers++;
             }
+            int nerfedPlayers = 0;
             foreach (var row in rows) if (row.Nerf < 1f) nerfedPlayers++;
 
-            float overallAccuracy = totalShots > 0 ? (float)totalHits / totalShots : 0f;
+            float periodAccuracy = periodShots > 0 ? (float)periodHits / periodShots : 0f;
+            double periodHoursElapsed = _periodStartMs > 0
+                ? (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - _periodStartMs) / 3600000.0
+                : hours;
 
             var sb = new StringBuilder();
             sb.Append("**[MogyAC] Daily report** — `").Append(server).Append("`\n");
-            sb.Append($"Every {hours}h | Tracked players: {rows.Count} | Damage-reduced now: {nerfedPlayers}\n");
-            // Accuracy comes from each weapon's rolling window (the last SampleCount shots), which
-            // is the same number the plugin acts on. It is current state, not a total for the
-            // period, and saying otherwise would misrepresent it.
-            sb.Append($"Rolling windows: {totalShots} shots, {totalHits} hits ({overallAccuracy:P0})\n");
+            sb.Append($"Period: {periodHoursElapsed:F1}h | Active players: {activePlayers} | ")
+              .Append($"Tracked: {rows.Count} | Damage-reduced now: {nerfedPlayers}\n");
+            // Raw hits/shots for the period. This is NOT the accuracy the plugin thresholds
+            // against: that one is the rolling-window metric, which reads much higher because
+            // RegisterHit discards misses older than MissExpirySeconds.
+            sb.Append($"This period: {periodShots} shots, {periodHits} hits ({periodAccuracy:P1} raw), ")
+              .Append($"{periodKills} kills\n");
+            sb.Append($"Flags raised: {periodSuspicion} | Damage reduced: {periodPenalties} hits ")
+              .Append($"({periodZeroDamage} nulled)\n");
 
             if (GetDailyReportBool("IncludeLagswitch", true))
             {
@@ -2065,7 +2449,7 @@ namespace Oxide.Plugins
 
             if (flagged.Count == 0)
             {
-                sb.Append($"\nNo player scored above {minScore:F2}. Nothing to review.");
+                sb.Append($"\nNo active player scored above {minScore:F2}. Nothing to review.");
                 return sb.ToString();
             }
 
@@ -2086,6 +2470,11 @@ namespace Oxide.Plugins
                 var line = new StringBuilder();
                 line.Append($"{row.Score:F2} | {who} | {row.WorstWeapon} ")
                     .Append($"acc={row.WorstAccuracy:P0} n={row.Samples}");
+                // Everything past this point is genuinely for the period, not rolling-window state.
+                line.Append($" | {row.PeriodShots}sh/{row.PeriodHits}h");
+                if (row.SuspicionEvents > 0) line.Append($" | flags={row.SuspicionEvents}");
+                if (row.ZeroDamageEvents > 0) line.Append($" | nulled={row.ZeroDamageEvents}");
+                else if (row.PenaltyEvents > 0) line.Append($" | reduced={row.PenaltyEvents}");
                 if (row.Nerf < 1f) line.Append($" | dmg={row.Nerf:P0}");
                 if (row.LagswitchIncidents > 0) line.Append($" | lag={row.LagswitchIncidents}");
                 if (GetDailyReportBool("IncludeKDA", true) && (row.Kills > 0 || row.Deaths > 0))
@@ -2141,6 +2530,9 @@ namespace Oxide.Plugins
 
                 SendDiscordReport(url, BuildDailyReportContent(), "daily report");
                 WriteDailyReportLastSent(nowMs);
+                // The period ends when its report goes out. /ac-daily-now deliberately does not
+                // reach here, so testing the webhook never destroys the day's counters.
+                ResetPeriodCounters();
             }
             catch (Exception ex)
             {
@@ -2432,6 +2824,7 @@ namespace Oxide.Plugins
             }
 
             weaponData.AddMiss(0f, ping, deltaPing);
+            GetOrCreatePeriodCounters(player.userID).Shots++;
 
             float aimDeltaDeg, snapDeg, snapSettleMs;
             MeasureAimKinematics(player, out aimDeltaDeg, out snapDeg, out snapSettleMs);
@@ -2517,6 +2910,7 @@ namespace Oxide.Plugins
             float gameTimeHour = GetGameTimeHour();
 
             weaponData.RegisterHit(dist, limit, expiry, ping, deltaPing);
+            GetOrCreatePeriodCounters(attacker.userID).Hits++;
 
             EnqueueTelemetry(new ShotTelemetryEvent
             {
@@ -2574,6 +2968,12 @@ namespace Oxide.Plugins
 
             if (shouldApplyNerfToAttacker && globalNerf < 1.0f && IsDamageReductionEnabled())
             {
+                // Counted where the damage is actually scaled, so the daily digest reports what the
+                // plugin did rather than what it computed.
+                var periodCounters = GetOrCreatePeriodCounters(attacker.userID);
+                periodCounters.PenaltyEvents++;
+                if (globalNerf <= 0f) periodCounters.ZeroDamageEvents++;
+
                 float originalDamage = info.damageTypes.Total();
                 info.damageTypes.ScaleAll(globalNerf);
                 float scaledDamage = info.damageTypes.Total();
@@ -2588,7 +2988,10 @@ namespace Oxide.Plugins
 
         void OnPlayerDisconnected(BasePlayer player, string reason)
         {
-            if (player == null || player.IsNpc || !player.userID.IsSteamId()) return;
+            if (player == null) return;
+            // Always drop the panel, even for players the rest of this hook ignores.
+            CloseUi(player);
+            if (player.IsNpc || !player.userID.IsSteamId()) return;
             _lastDisconnectTime[player.userID] = UnityEngine.Time.realtimeSinceStartup;
             int count;
             _connectionDropCount.TryGetValue(player.userID, out count);
@@ -2604,6 +3007,7 @@ namespace Oxide.Plugins
             if (victim == null || victim.IsNpc || !victim.userID.IsSteamId()) return;
 
             GetOrCreateKDA(victim.userID).Deaths++;
+            GetOrCreatePeriodCounters(victim.userID).Deaths++;
 
             EnqueueTelemetry(new ShotTelemetryEvent
             {
@@ -2625,6 +3029,7 @@ namespace Oxide.Plugins
             }
 
             GetOrCreateKDA(attacker.userID).Kills++;
+            GetOrCreatePeriodCounters(attacker.userID).Kills++;
 
             if (hasContributors)
             {
@@ -2720,6 +3125,7 @@ namespace Oxide.Plugins
             if (suspiciousWeapons.Contains(weaponName)) return;
 
             suspiciousWeapons.Add(weaponName);
+            GetOrCreatePeriodCounters(attacker.userID).SuspicionEvents++;
             DebugLog($"Suspicion entered: player={attacker.displayName} ({attacker.userID}), weapon={weaponName}, accuracy={evaluation.Accuracy:P2}");
             EmitSuspicionEvent(attacker.userID, weaponName, evaluation);
         }
@@ -4236,6 +4642,7 @@ namespace Oxide.Plugins
             report += Msg(player, "HelpConfigTune") + "\n";
             report += Msg(player, "HelpSuggest") + "\n";
             report += Msg(player, "HelpDailyNow") + "\n";
+            report += Msg(player, "HelpUi") + "\n";
             report += Msg(player, "HelpHelp");
             SendReply(player, report);
         }
